@@ -17,6 +17,7 @@ Do not include private, sensitive, health, financial, or account information.
 ## Route
 
 - Speaker, wired or USB-C headphones, or Bluetooth:
+- Binaural beat, soundscape, selected music, or layered session:
 
 ## Issue
 
@@ -26,4 +27,4 @@ Do not include private, sensitive, health, financial, or account information.
 
 ## Area
 
-- Mandala visuals, image export, preview audio, Play/Pause, or timer completion chime:
+- Mandala visuals, image export, binaural beat, soundscape, selected music, Lock Screen/Control Center, timer fade, background playback, relaunch, interruption recovery, or timer completion chime:
