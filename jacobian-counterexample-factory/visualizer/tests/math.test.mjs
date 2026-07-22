@@ -2,11 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  automorphismFiberCoefficients,
+  automorphismFrameCurvePoint,
+  automorphismJacobian,
   cAbs,
   collisionCertificate,
+  determinant3,
+  evaluateAutomorphismMap,
   evaluatePolynomial,
   fiberPolynomialCoefficients,
   framePolynomialCoefficients,
+  invertAutomorphismMap,
+  reconstructAutomorphismSource,
   reconstructSource,
   solvePolynomial,
   verifyCollisionNumerically,
@@ -24,6 +31,58 @@ test("frame polynomial has the requested generic degree", () => {
     const coefficients = framePolynomialCoefficients(d, 1);
     assert.equal(coefficients.length - 1, d);
     assert.notEqual(coefficients.at(-1), 0);
+  }
+});
+
+test("conjecture-compatible automorphisms have an exact polynomial inverse", () => {
+  const variants = ["identity", "shear", "chain"];
+  const targets = [
+    { alpha: 2, beta: 1, gamma: 0 },
+    { alpha: -3, beta: 2, gamma: -1 },
+    { alpha: 0.25, beta: -0.5, gamma: 0.75 },
+  ];
+  for (let k = 2; k <= 12; k += 1) {
+    for (const variant of variants) {
+      for (const target of targets) {
+        const source = invertAutomorphismMap(k, target, variant);
+        const image = evaluateAutomorphismMap(k, source, variant);
+        near(image[0], target.alpha, 1e-6);
+        near(image[1], target.beta, 1e-10);
+        near(image[2], target.gamma, 1e-10);
+      }
+    }
+  }
+});
+
+test("automorphism examples have constant Jacobian determinant one", () => {
+  const variants = ["identity", "shear", "chain"];
+  const points = [[0, 0, 0], [1, -2, 3], [-0.25, 0.5, -0.75]];
+  for (let k = 2; k <= 20; k += 1) {
+    for (const variant of variants) {
+      for (const point of points) {
+        assert.equal(determinant3(automorphismJacobian(k, point, variant)), 1);
+      }
+    }
+  }
+});
+
+test("every automorphism target has exactly one fiber root and one reconstructed source", () => {
+  const target = { alpha: 2, beta: 1, gamma: 0 };
+  for (const variant of ["identity", "shear", "chain"]) {
+    for (let k = 2; k <= 12; k += 1) {
+      const coefficients = automorphismFiberCoefficients(k, target.alpha, target.beta, target.gamma, variant);
+      const solution = solvePolynomial(coefficients);
+      assert.equal(solution.degree, 1);
+      assert.equal(solution.roots.length, 1);
+      const source = reconstructAutomorphismSource(k, solution.roots[0], target, variant);
+      const expected = invertAutomorphismMap(k, target, variant);
+      near(source.x.re, expected[0]);
+      near(source.y.re, expected[1]);
+      near(source.z.re, expected[2]);
+      const point = automorphismFrameCurvePoint(k, solution.roots[0].re, target.beta, target.gamma, variant);
+      near(point.alpha, target.alpha);
+      assert.equal(point.slope, 1);
+    }
   }
 });
 

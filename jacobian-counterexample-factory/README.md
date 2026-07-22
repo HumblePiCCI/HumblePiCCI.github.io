@@ -37,19 +37,22 @@ jacobian-factory --count 6 --normalize --verify-through 8
 
 ## Interactive fiber lab
 
-The browser-based [Jacobian Fiber Lab](visualizer/) turns the exact fiber
-equation into two linked, rotatable views:
+The browser-based [Jacobian Fiber Lab](visualizer/) compares conjecture-compatible
+polynomial automorphisms with this repository's counterexamples, then turns
+their fiber equations into two linked, rotatable views:
 
 - a real fiber sculpture showing how finite sheets intersect a target and
   escape to infinity when `P'(T)` vanishes; and
 - a complex polynomial landscape whose wells are all finite roots of the
   current fiber.
 
-Choose `d=3,...,12`, move the target `(alpha, beta, gamma)`, load exact
-collision certificates, animate a target across the family, or jump to an
-escape wall. Every selected root reconstructs its source coordinates. The
-visualizer distinguishes exact repository certificates from numerical browser
-root solving and reports the maximum numerical residual.
+Switch among the identity, triangular-shear, and chained-shear automorphisms,
+each with determinant `1`, an explicit inverse, and one preimage per target.
+Then switch to `d=3,...,12` counterexamples, load exact collision certificates,
+animate a target across the family, or jump to an escape wall. Every selected
+root reconstructs its source coordinates. The visualizer distinguishes exact
+inverse/collision certificates from numerical browser root solving and reports
+the maximum numerical residual.
 
 Serve the repository locally and open the visualizer:
 

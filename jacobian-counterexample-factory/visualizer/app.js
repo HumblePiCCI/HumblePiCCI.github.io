@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.172.0/examples/jsm/controls/OrbitControls.js";
 import {
+  automorphismFiberCoefficients,
+  automorphismFrameCurvePoint,
   cAbs,
   collisionCertificate,
   evaluatePolynomial,
@@ -9,6 +11,7 @@ import {
   formatNumber,
   frameCurvePoint,
   realCriticalTargets,
+  reconstructAutomorphismSource,
   reconstructSource,
   solvePolynomial,
   threeRealPreset,
@@ -62,10 +65,37 @@ const elements = {
   tooltip: document.querySelector("#root-tooltip"),
   legendPrimary: document.querySelector("#legend-primary"),
   legendSecondary: document.querySelector("#legend-secondary"),
+  legendProof: document.querySelector("#legend-proof"),
+  legendProofDot: document.querySelector("#legend-proof-dot"),
+  familyButtons: [...document.querySelectorAll(".family-button[data-family]")],
+  classificationBadge: document.querySelector("#classification-badge"),
+  classificationSymbol: document.querySelector("#classification-symbol"),
+  classificationTitle: document.querySelector("#classification-title"),
+  classificationDetail: document.querySelector("#classification-detail"),
+  degreeMetricLabel: document.querySelector("#degree-metric-label"),
+  jacobianMetric: document.querySelector("#jacobian-metric"),
+  degreeLabel: document.querySelector("#degree-label"),
+  degreeMin: document.querySelector("#degree-min"),
+  degreeMax: document.querySelector("#degree-max"),
+  deckEyebrow: document.querySelector("#deck-eyebrow"),
+  deckTitle: document.querySelector("#deck-title"),
+  equationExpression: document.querySelector("#equation-expression"),
+  presetOneTitle: document.querySelector("#preset-one-title"),
+  presetOneDetail: document.querySelector("#preset-one-detail"),
+  presetTwoTitle: document.querySelector("#preset-two-title"),
+  presetTwoDetail: document.querySelector("#preset-two-detail"),
+  presetThreeTitle: document.querySelector("#preset-three-title"),
+  presetThreeDetail: document.querySelector("#preset-three-detail"),
+  howToText: document.querySelector("#how-to-text"),
+  brandSubtitle: document.querySelector("#brand-subtitle"),
+  footerLead: document.querySelector("#footer-lead"),
+  footerDetail: document.querySelector("#footer-detail"),
 };
 
 const initialCertificate = collisionCertificate(5);
 const state = {
+  family: "counterexample",
+  variant: "chain",
   d: 5,
   ...initialCertificate.target,
   mode: "fiber",
@@ -78,6 +108,51 @@ const state = {
   lastStructureKey: "",
   lastAnimatedUpdate: 0,
 };
+
+const familySnapshots = {
+  automorphism: {
+    d: 3,
+    variant: "chain",
+    alpha: 2,
+    beta: 1,
+    gamma: 0,
+    activePreset: "chain",
+    escapeT: null,
+  },
+  counterexample: null,
+};
+
+function isAutomorphism() {
+  return state.family === "automorphism";
+}
+
+function currentPolynomialCoefficients() {
+  return isAutomorphism()
+    ? automorphismFiberCoefficients(state.d, state.alpha, state.beta, state.gamma, state.variant)
+    : fiberPolynomialCoefficients(state.d, state.alpha, state.beta, state.gamma);
+}
+
+function currentFrameCurvePoint(t) {
+  return isAutomorphism()
+    ? automorphismFrameCurvePoint(state.d, t, state.beta, state.gamma, state.variant)
+    : frameCurvePoint(state.d, t, state.beta, state.gamma);
+}
+
+function currentSource(root) {
+  return isAutomorphism()
+    ? reconstructAutomorphismSource(state.d, root, state, state.variant)
+    : reconstructSource(state.d, root, state);
+}
+
+function fiberCenter() {
+  if (!isAutomorphism()) return { t: 0, alpha: 0, x: 0 };
+  const root = state.solution?.roots[0]?.re ?? 0;
+  return { t: root, alpha: state.alpha, x: root };
+}
+
+function landscapeCenterT() {
+  return isAutomorphism() ? state.solution?.roots[0]?.re ?? 0 : 0;
+}
 
 let renderer;
 let scene;
@@ -226,6 +301,14 @@ function compress(value, scale = 1) {
 }
 
 function mapFiberPoint(point) {
+  const center = fiberCenter();
+  if (isAutomorphism()) {
+    return new THREE.Vector3(
+      (point.t - center.t) * 1.3,
+      (point.alpha - center.alpha) * 1.3,
+      (point.x - center.x) * 1.3,
+    );
+  }
   return new THREE.Vector3(
     point.t * 1.72,
     compress(point.alpha, 2.2) * 1.58,
@@ -271,11 +354,11 @@ function addFiberAxes() {
     createAxisLine(new THREE.Vector3(0, -5.3, 0), new THREE.Vector3(0, 5.8, 0), COLORS.violet),
     createAxisLine(new THREE.Vector3(0, -4.5, -5.8), new THREE.Vector3(0, -4.5, 5.8), COLORS.magenta),
   );
-  const tLabel = createTextSprite("T", "#57e6ff");
+  const tLabel = createTextSprite(isAutomorphism() ? "T − unique root" : "T", isAutomorphism() ? "#63f2b5" : "#57e6ff");
   tLabel.position.set(6.1, -4.45, 0);
-  const alphaLabel = createTextSprite("α target", "#ae7dff");
+  const alphaLabel = createTextSprite(isAutomorphism() ? "α − target" : "α target", "#ae7dff");
   alphaLabel.position.set(0, 6.1, 0);
-  const xLabel = createTextSprite("escape  asinh(x)", "#ff5edb");
+  const xLabel = createTextSprite(isAutomorphism() ? "x − unique preimage" : "escape  asinh(x)", isAutomorphism() ? "#57e6ff" : "#ff5edb");
   xLabel.position.set(0, -4.35, 6.2);
   structureGroup.add(tLabel, alphaLabel, xLabel);
 }
@@ -284,7 +367,9 @@ function addFiberSegment(points, index) {
   if (points.length < 4) return;
   const curve = new THREE.CatmullRomCurve3(points, false, "centripetal", 0.45);
   const tubularSegments = Math.min(260, Math.max(30, points.length * 2));
-  const color = index % 2 === 0 ? COLORS.cyan : COLORS.violet;
+  const color = isAutomorphism()
+    ? index % 2 === 0 ? COLORS.green : COLORS.cyan
+    : index % 2 === 0 ? COLORS.cyan : COLORS.violet;
   const glowGeometry = new THREE.TubeGeometry(curve, tubularSegments, 0.105, 6, false);
   const glowMaterial = new THREE.MeshBasicMaterial({
     color,
@@ -306,15 +391,21 @@ function addFiberSegment(points, index) {
 
 function buildFiberStructure() {
   addFiberAxes();
-  const tRange = state.d === 3 ? 4.2 : 3.25;
+  const center = fiberCenter();
+  const tRange = isAutomorphism() ? 4.1 : state.d === 3 ? 4.2 : 3.25;
   const samples = 760;
   const segments = [];
   let active = [];
   let previous = null;
   for (let index = 0; index <= samples; index += 1) {
-    const t = -tRange + (2 * tRange * index) / samples;
-    const point = frameCurvePoint(state.d, t, state.beta, state.gamma);
-    const mapped = mapFiberPoint(point);
+    const relativeT = -tRange + (2 * tRange * index) / samples;
+    const t = center.t + relativeT;
+    const point = isAutomorphism()
+      ? { t, alpha: state.alpha + relativeT, slope: 1, x: center.x + relativeT }
+      : currentFrameCurvePoint(t);
+    const mapped = isAutomorphism()
+      ? new THREE.Vector3(relativeT * 1.3, relativeT * 1.3, relativeT * 1.3)
+      : mapFiberPoint(point);
     const valid = Number.isFinite(point.alpha)
       && Number.isFinite(point.x)
       && Math.abs(point.slope) > 0.008
@@ -332,7 +423,7 @@ function buildFiberStructure() {
   if (active.length >= 4) segments.push(active);
   segments.forEach(addFiberSegment);
 
-  const criticalTargets = realCriticalTargets(state.d, state.beta, state.gamma);
+  const criticalTargets = isAutomorphism() ? [] : realCriticalTargets(state.d, state.beta, state.gamma);
   criticalTargets.slice(0, 10).forEach((critical, index) => {
     const side = index % 2 === 0 ? 1 : -1;
     const position = mapFiberPoint({ ...critical, x: side * 120 });
@@ -352,7 +443,9 @@ function buildFiberStructure() {
 
 function createRootMarker(root, position, rootIndex, certified = false) {
   const selected = rootIndex === state.selectedRoot;
-  const color = certified ? COLORS.gold : Math.abs(root.im) < 1e-7 ? COLORS.magenta : COLORS.cyan;
+  const color = isAutomorphism()
+    ? COLORS.green
+    : certified ? COLORS.gold : Math.abs(root.im) < 1e-7 ? COLORS.magenta : COLORS.cyan;
   const geometry = new THREE.SphereGeometry(selected ? 0.135 : 0.105, 24, 18);
   const material = new THREE.MeshStandardMaterial({
     color,
@@ -385,16 +478,18 @@ function createRootMarker(root, position, rootIndex, certified = false) {
 }
 
 function isCertifiedRoot(root) {
+  if (isAutomorphism()) return Math.abs(root.im) < 1e-7;
   if (state.activePreset !== "collision" || Math.abs(root.im) > 1e-7) return false;
   const certificate = collisionCertificate(state.d);
   return certificate.finiteRootTs.some((value) => Math.abs(root.re - value) < 2e-5);
 }
 
 function addTargetPlane() {
-  const y = compress(state.alpha, 2.2) * 1.58;
+  const y = isAutomorphism() ? 0 : compress(state.alpha, 2.2) * 1.58;
+  const color = isAutomorphism() ? COLORS.green : COLORS.gold;
   const geometry = new THREE.PlaneGeometry(12.5, 11.5, 1, 1);
   const material = new THREE.MeshBasicMaterial({
-    color: COLORS.gold,
+    color,
     transparent: true,
     opacity: 0.055,
     side: THREE.DoubleSide,
@@ -405,25 +500,67 @@ function addTargetPlane() {
   plane.position.y = y;
   const edges = new THREE.LineSegments(
     new THREE.EdgesGeometry(geometry),
-    new THREE.LineBasicMaterial({ color: COLORS.gold, transparent: true, opacity: 0.28 }),
+    new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.28 }),
   );
   edges.rotation.copy(plane.rotation);
   edges.position.copy(plane.position);
   overlayGroup.add(plane, edges);
 }
 
-function buildFiberOverlay() {
-  addTargetPlane();
-  state.solution.roots.forEach((root, index) => {
-    if (Math.abs(root.im) > 1e-6) return;
-    const source = reconstructSource(state.d, root, state);
-    const point = mapFiberPoint({ t: root.re, alpha: state.alpha, x: source.x.re });
-    createRootMarker(root, point, index, isCertifiedRoot(root));
+function addOutputBeacon(rootPositions) {
+  if (!rootPositions.length) return;
+  const planeY = isAutomorphism() ? 0 : compress(state.alpha, 2.2) * 1.58;
+  const color = isAutomorphism() ? COLORS.green : COLORS.gold;
+  const beaconPosition = new THREE.Vector3(-3.6, planeY + 1.45, -2.4);
+  const orbGeometry = new THREE.IcosahedronGeometry(0.18, 2);
+  const orbMaterial = new THREE.MeshStandardMaterial({
+    color,
+    emissive: color,
+    emissiveIntensity: 3.6,
+    metalness: 0.3,
+    roughness: 0.18,
   });
+  const orb = new THREE.Mesh(orbGeometry, orbMaterial);
+  orb.position.copy(beaconPosition);
+  overlayGroup.add(orb);
+
+  rootPositions.forEach((start, index) => {
+    const midpoint = start.clone().lerp(beaconPosition, 0.5);
+    midpoint.y += 0.6 + index * 0.11;
+    midpoint.z += index % 2 === 0 ? 0.35 : -0.35;
+    const curve = new THREE.QuadraticBezierCurve3(start, midpoint, beaconPosition);
+    const geometry = new THREE.TubeGeometry(curve, 42, 0.012, 5, false);
+    const material = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.34,
+      blending: THREE.AdditiveBlending,
+    });
+    overlayGroup.add(new THREE.Mesh(geometry, material));
+  });
+
 }
 
-function landscapeHeight(root) {
-  const coefficients = fiberPolynomialCoefficients(state.d, state.alpha, state.beta, state.gamma);
+function buildFiberOverlay() {
+  addTargetPlane();
+  const rootPositions = [];
+  state.solution.roots.forEach((root, index) => {
+    if (Math.abs(root.im) > 1e-6) return;
+    const source = currentSource(root);
+    const point = mapFiberPoint({ t: root.re, alpha: state.alpha, x: source.x.re });
+    createRootMarker(root, point, index, isCertifiedRoot(root));
+    rootPositions.push(point);
+  });
+  addOutputBeacon(rootPositions);
+}
+
+function landscapeHeight(root, centered = false) {
+  if (isAutomorphism()) {
+    const centerT = landscapeCenterT();
+    const delta = centered ? root : { re: root.re - centerT, im: root.im };
+    return Math.min(5.7, Math.log1p(cAbs(delta)) * 0.72);
+  }
+  const coefficients = currentPolynomialCoefficients();
   return Math.min(5.7, Math.log1p(cAbs(evaluatePolynomial(coefficients, root))) * 0.72);
 }
 
@@ -437,11 +574,15 @@ function buildLandscapeStructure() {
   for (let row = 0; row <= resolution; row += 1) {
     const im = -span + (2 * span * row) / resolution;
     for (let column = 0; column <= resolution; column += 1) {
-      const re = -span + (2 * span * column) / resolution;
-      const height = landscapeHeight({ re, im });
-      positions.push(re * 1.52, height - 1.8, im * 1.52);
+      const displayRe = -span + (2 * span * column) / resolution;
+      const height = landscapeHeight({ re: displayRe, im }, true);
+      positions.push(displayRe * 1.52, height - 1.8, im * 1.52);
       const normalized = height / 5.7;
-      color.setHSL(0.52 + normalized * 0.28, 0.82, 0.48 + normalized * 0.12);
+      color.setHSL(
+        isAutomorphism() ? 0.43 + normalized * 0.12 : 0.52 + normalized * 0.28,
+        0.82,
+        0.48 + normalized * 0.12,
+      );
       colors.push(color.r, color.g, color.b);
     }
   }
@@ -481,7 +622,7 @@ function buildLandscapeStructure() {
   grid.material.opacity = 0.28;
   structureGroup.add(grid);
 
-  const realLabel = createTextSprite("Re(T)", "#57e6ff");
+  const realLabel = createTextSprite(isAutomorphism() ? "Re(T − unique root)" : "Re(T)", isAutomorphism() ? "#63f2b5" : "#57e6ff");
   realLabel.position.set(5.9, -1.75, 0);
   const imaginaryLabel = createTextSprite("Im(T)", "#ff5edb");
   imaginaryLabel.position.set(0, -1.75, 5.9);
@@ -491,13 +632,14 @@ function buildLandscapeStructure() {
 }
 
 function buildLandscapeOverlay() {
+  const centerT = landscapeCenterT();
   state.solution.roots.forEach((root, index) => {
     const height = landscapeHeight(root);
-    const position = new THREE.Vector3(root.re * 1.52, height - 1.72, root.im * 1.52);
+    const position = new THREE.Vector3((root.re - centerT) * 1.52, height - 1.72, root.im * 1.52);
     createRootMarker(root, position, index, isCertifiedRoot(root));
     const beaconGeometry = new THREE.CylinderGeometry(0.008, 0.008, 1.1, 6);
     const beaconMaterial = new THREE.MeshBasicMaterial({
-      color: isCertifiedRoot(root) ? COLORS.gold : COLORS.cyan,
+      color: isAutomorphism() ? COLORS.green : isCertifiedRoot(root) ? COLORS.gold : COLORS.cyan,
       transparent: true,
       opacity: 0.18,
       blending: THREE.AdditiveBlending,
@@ -509,7 +651,7 @@ function buildLandscapeOverlay() {
 }
 
 function structureKey() {
-  const base = `${state.mode}|${state.d}|${state.beta.toFixed(6)}|${state.gamma.toFixed(6)}`;
+  const base = `${state.family}|${state.variant}|${state.mode}|${state.d}|${state.beta.toFixed(6)}|${state.gamma.toFixed(6)}`;
   return state.mode === "landscape" ? `${base}|${state.alpha.toFixed(6)}` : base;
 }
 
@@ -531,7 +673,7 @@ function rebuildScene() {
 }
 
 function solveCurrentFiber() {
-  const coefficients = fiberPolynomialCoefficients(state.d, state.alpha, state.beta, state.gamma);
+  const coefficients = currentPolynomialCoefficients();
   state.solution = solvePolynomial(coefficients);
   if (state.selectedRoot >= state.solution.roots.length) state.selectedRoot = 0;
 }
@@ -549,7 +691,7 @@ function formatResidual(value) {
 }
 
 function escapingSheetCount() {
-  return state.activePreset === "escape" && Number.isFinite(state.escapeT) ? 2 : 0;
+  return !isAutomorphism() && state.activePreset === "escape" && Number.isFinite(state.escapeT) ? 2 : 0;
 }
 
 function rootIsAtEscapeWall(root) {
@@ -557,18 +699,80 @@ function rootIsAtEscapeWall(root) {
     && Math.hypot(root.re - state.escapeT, root.im) < 2e-4;
 }
 
+function updateFamilyChrome() {
+  const automorphism = isAutomorphism();
+  document.body.dataset.family = state.family;
+  for (const button of elements.familyButtons) {
+    const selected = button.dataset.family === state.family;
+    button.classList.toggle("is-active", selected);
+    button.setAttribute("aria-pressed", String(selected));
+  }
+
+  elements.classificationBadge.classList.toggle("is-automorphism", automorphism);
+  elements.classificationSymbol.textContent = automorphism ? "✓" : "≠";
+  elements.classificationTitle.textContent = automorphism ? "Injective Keller map" : "Non-injective Keller map";
+  elements.classificationDetail.textContent = automorphism
+    ? "conjecture-compatible · explicit polynomial inverse"
+    : "counterexample · certified shared output";
+  elements.brandSubtitle.textContent = automorphism ? "automorphism chamber" : "counterexample chamber";
+  elements.degreeLabel.textContent = automorphism ? "Shear exponent" : "Generic fiber degree";
+  elements.degree.min = automorphism ? "2" : "3";
+  elements.degreeMin.textContent = automorphism ? "2" : "3";
+  elements.degreeMax.textContent = "12";
+  elements.degreeMetricLabel.textContent = "generic degree";
+  elements.jacobianMetric.textContent = automorphism ? "1" : "−2";
+  elements.deckEyebrow.textContent = automorphism ? "Exact inverse" : "Live target";
+  elements.deckTitle.textContent = automorphism ? "Trace one preimage" : "Shape the fiber";
+
+  if (automorphism) {
+    elements.presetOneTitle.textContent = "Identity";
+    elements.presetOneDetail.textContent = "the untouched baseline";
+    elements.presetTwoTitle.textContent = "Single shear";
+    elements.presetTwoDetail.textContent = "x bends by yᵏ";
+    elements.presetThreeTitle.textContent = "Chained shears";
+    elements.presetThreeDetail.textContent = "nonlinear, still invertible";
+    elements.equationExpression.innerHTML = state.variant === "identity"
+      ? "P(T) = T − α"
+      : state.variant === "shear"
+        ? `P(T) = T + β<sup>${state.d}</sup> − α`
+        : `P(T) = T + (β − γ<sup>${state.d}</sup>)<sup>${state.d}</sup> − α`;
+    elements.howToText.innerHTML =
+      "These are polynomial automorphisms: identity, one triangular shear, and two chained shears. "
+      + "The centered sculpture shows the exact inverse channel; every target plane cuts it once. "
+      + "The thin arc is a relation diagram linking that unique source to its output. In landscape mode, the lone well is the only complex preimage.";
+    elements.footerLead.textContent = "One target. One source. An explicit route back.";
+    elements.footerDetail.textContent = "Exact polynomial inverse · det 1 · numerical rendering";
+  } else {
+    elements.presetOneTitle.textContent = "Exact collision";
+    elements.presetOneDetail.textContent = "two certified inputs";
+    elements.presetTwoTitle.textContent = "Nearby fiber";
+    elements.presetTwoDetail.textContent = "move off the certificate";
+    elements.presetThreeTitle.textContent = "Escape wall";
+    elements.presetThreeDetail.textContent = "a sheet runs to infinity";
+    elements.equationExpression.innerHTML = "P(T) = h<sub>d</sub>(T, γ) + βT − 2α";
+    elements.howToText.innerHTML =
+      "The sculpture plots every real parameter <i>T</i> against target α and reconstructed source "
+      + "<i>x = 2/P′(T)</i>. The target plane can cut several sheets, so distinct inputs share one output. "
+      + "Thin arcs are a relation diagram, not extra coordinate curves. In landscape mode, all complex roots appear as wells of |P(T)|.";
+    elements.footerLead.textContent = "Several sources. One target. The global inverse breaks.";
+    elements.footerDetail.textContent = "Exact collision certificates · det −2 · numerical root rendering";
+  }
+}
+
 function updateOutputs() {
+  updateFamilyChrome();
   elements.degree.value = String(state.d);
-  elements.degreeOutput.value = `d = ${state.d}`;
+  elements.degreeOutput.value = `${isAutomorphism() ? "k" : "d"} = ${state.d}`;
   elements.alpha.value = String(state.alpha);
   elements.beta.value = String(state.beta);
   elements.gamma.value = String(state.gamma);
   elements.alphaOutput.value = formatNumber(state.alpha);
   elements.betaOutput.value = formatNumber(state.beta);
   elements.gammaOutput.value = formatNumber(state.gamma);
-  elements.degreeMetric.textContent = String(state.d);
+  elements.degreeMetric.textContent = isAutomorphism() ? "1" : String(state.d);
 
-  const degreeLossAtInfinity = Math.max(0, state.d - state.solution.degree);
+  const genericDegree = isAutomorphism() ? 1 : state.d;
+  const degreeLossAtInfinity = Math.max(0, genericDegree - state.solution.degree);
   const escaping = escapingSheetCount();
   const rootsAtInfinity = degreeLossAtInfinity + escaping;
   const finitePreimages = Math.max(0, state.solution.degree - escaping);
@@ -576,14 +780,26 @@ function updateOutputs() {
     ? `${finitePreimages} + ${rootsAtInfinity}∞`
     : String(finitePreimages);
   elements.residualMetric.textContent = formatResidual(state.solution.residual);
-  elements.solverStatus.textContent = escaping
+  elements.solverStatus.textContent = isAutomorphism()
+    ? "linear · one root"
+    : escaping
     ? "repeated root · P′(T) = 0"
     : state.solution.converged ? "converged" : "near a multiple root";
-  elements.solverStatus.style.color = escaping || !state.solution.converged ? "var(--gold)" : "";
-  elements.equationDetail.textContent = rootsAtInfinity
+  elements.solverStatus.style.color = !isAutomorphism() && (escaping || !state.solution.converged) ? "var(--gold)" : "";
+  elements.equationDetail.textContent = isAutomorphism()
+    ? "generic degree 1 · exactly one finite complex preimage"
+    : rootsAtInfinity
     ? `degree ${state.d} generically · ${finitePreimages} finite preimages · ${rootsAtInfinity} sheets at infinity`
     : `degree ${state.d} · ${state.solution.roots.length} finite complex roots`;
 
+  elements.truthStrip.classList.toggle("is-automorphism", isAutomorphism());
+  if (isAutomorphism()) {
+    const names = { identity: "identity", shear: "single triangular shear", chain: "chained triangular shears" };
+    elements.truthStrip.classList.remove("is-numeric");
+    elements.truthIcon.textContent = "✓";
+    elements.truthTitle.textContent = "Explicit inverse certificate";
+    elements.truthDetail.textContent = `${names[state.variant]} · every target has one preimage`;
+  } else {
   const certificate = collisionCertificate(state.d);
   const onCertificate = targetsMatch(state, certificate.target);
   elements.truthStrip.classList.toggle("is-numeric", !onCertificate);
@@ -600,13 +816,14 @@ function updateOutputs() {
       ? `two sheets escape · root residual ${formatResidual(state.solution.residual)}`
       : `${state.solution.roots.length} roots · residual ${formatResidual(state.solution.residual)}`;
   }
+  }
 
   for (const button of [elements.collisionPreset, elements.driftPreset, elements.escapePreset]) {
     button.classList.remove("is-active");
   }
-  if (state.activePreset === "collision") elements.collisionPreset.classList.add("is-active");
-  if (state.activePreset === "drift") elements.driftPreset.classList.add("is-active");
-  if (state.activePreset === "escape") elements.escapePreset.classList.add("is-active");
+  if (["collision", "identity"].includes(state.activePreset)) elements.collisionPreset.classList.add("is-active");
+  if (["drift", "shear"].includes(state.activePreset)) elements.driftPreset.classList.add("is-active");
+  if (["escape", "chain"].includes(state.activePreset)) elements.escapePreset.classList.add("is-active");
 }
 
 function updateInspector() {
@@ -619,7 +836,7 @@ function updateInspector() {
   const index = ((state.selectedRoot % roots.length) + roots.length) % roots.length;
   state.selectedRoot = index;
   const root = roots[index];
-  const source = reconstructSource(state.d, root, state);
+  const source = currentSource(root);
   elements.rootIndex.textContent = `root ${index + 1} / ${roots.length}`;
   if (rootIsAtEscapeWall(root)) {
     elements.rootT.textContent = formatNumber(state.escapeT);
@@ -636,8 +853,14 @@ function updateInspector() {
 
 function updateLegends() {
   const landscape = state.mode === "landscape";
-  elements.legendPrimary.textContent = landscape ? "|P(T)| landscape" : "real fiber curve";
-  elements.legendSecondary.textContent = landscape ? "complex root / preimage" : "real finite preimage";
+  elements.legendPrimary.textContent = landscape
+    ? "|P(T)| landscape"
+    : isAutomorphism() ? "unbroken inverse channel" : "real fiber curve";
+  elements.legendSecondary.textContent = landscape
+    ? isAutomorphism() ? "the unique complex root" : "complex root / preimage"
+    : isAutomorphism() ? "unique real preimage" : "real finite preimage";
+  elements.legendProof.textContent = isAutomorphism() ? "explicit inverse" : "certified collision";
+  elements.legendProofDot.classList.toggle("is-automorphism", isAutomorphism());
 }
 
 function updateAll({ resetStructure = false } = {}) {
@@ -680,6 +903,44 @@ function setMode(mode) {
     button.classList.toggle("is-active", selected);
     button.setAttribute("aria-pressed", String(selected));
   }
+  resetCamera();
+  updateAll({ resetStructure: true });
+}
+
+function setAutomorphismVariant(variant) {
+  state.variant = variant;
+  state.activePreset = variant;
+  state.escapeT = null;
+  state.selectedRoot = 0;
+  updateAll({ resetStructure: true });
+}
+
+function setFamily(family) {
+  if (family === state.family) return;
+  familySnapshots[state.family] = {
+    d: state.d,
+    variant: state.variant,
+    alpha: state.alpha,
+    beta: state.beta,
+    gamma: state.gamma,
+    activePreset: state.activePreset,
+    escapeT: state.escapeT,
+  };
+  const next = familySnapshots[family] ?? {
+    d: 5,
+    variant: "chain",
+    ...initialCertificate.target,
+    activePreset: "collision",
+    escapeT: null,
+  };
+  state.family = family;
+  Object.assign(state, next);
+  state.animateTarget = false;
+  state.animationCenter = state.alpha;
+  state.selectedRoot = 0;
+  state.lastStructureKey = "";
+  elements.animateTarget.setAttribute("aria-pressed", "false");
+  elements.animateTarget.querySelector("span").textContent = "▶";
   resetCamera();
   updateAll({ resetStructure: true });
 }
@@ -743,7 +1004,7 @@ function renderFrame() {
       alphaMinimum,
       Math.min(alphaMaximum, state.animationCenter + amplitude * Math.sin(elapsed * 0.62)),
     );
-    state.activePreset = "custom";
+    state.activePreset = isAutomorphism() ? state.variant : "custom";
     state.escapeT = null;
     updateAll();
   }
@@ -757,13 +1018,14 @@ function renderFrame() {
 
 elements.degree.addEventListener("input", () => {
   state.d = Number.parseInt(elements.degree.value, 10);
-  applyTarget(collisionCertificate(state.d).target, "collision");
+  if (isAutomorphism()) updateAll({ resetStructure: true });
+  else applyTarget(collisionCertificate(state.d).target, "collision");
 });
 
 for (const [key, element] of [["alpha", elements.alpha], ["beta", elements.beta], ["gamma", elements.gamma]]) {
   element.addEventListener("input", () => {
     state[key] = Number.parseFloat(element.value);
-    state.activePreset = "custom";
+    state.activePreset = isAutomorphism() ? state.variant : "custom";
     state.escapeT = null;
     state.animateTarget = false;
     elements.animateTarget.setAttribute("aria-pressed", "false");
@@ -772,14 +1034,20 @@ for (const [key, element] of [["alpha", elements.alpha], ["beta", elements.beta]
 }
 
 elements.collisionPreset.addEventListener("click", () => {
-  applyTarget(collisionCertificate(state.d).target, "collision");
+  if (isAutomorphism()) setAutomorphismVariant("identity");
+  else applyTarget(collisionCertificate(state.d).target, "collision");
 });
 
 elements.driftPreset.addEventListener("click", () => {
-  applyTarget(threeRealPreset(state.d), "drift");
+  if (isAutomorphism()) setAutomorphismVariant("shear");
+  else applyTarget(threeRealPreset(state.d), "drift");
 });
 
 elements.escapePreset.addEventListener("click", () => {
+  if (isAutomorphism()) {
+    setAutomorphismVariant("chain");
+    return;
+  }
   const criticalTargets = realCriticalTargets(state.d, state.beta, state.gamma);
   const nearest = criticalTargets.reduce((best, current) => {
     if (!best) return current;
@@ -802,6 +1070,7 @@ elements.resetCamera.addEventListener("click", resetCamera);
 elements.previousRoot.addEventListener("click", () => selectRoot(state.selectedRoot - 1));
 elements.nextRoot.addEventListener("click", () => selectRoot(state.selectedRoot + 1));
 elements.modeButtons.forEach((button) => button.addEventListener("click", () => setMode(button.dataset.mode)));
+elements.familyButtons.forEach((button) => button.addEventListener("click", () => setFamily(button.dataset.family)));
 
 initializeScene();
 updateAll({ resetStructure: true });

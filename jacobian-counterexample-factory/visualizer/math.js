@@ -110,6 +110,75 @@ export function fiberPolynomialCoefficients(d, alpha, beta, gamma) {
   return trimPolynomial(coefficients);
 }
 
+const AUTOMORPHISM_VARIANTS = new Set(["identity", "shear", "chain"]);
+
+function assertAutomorphismInputs(k, variant) {
+  if (!Number.isInteger(k) || k < 2) throw new RangeError("k must be an integer at least 2");
+  if (!AUTOMORPHISM_VARIANTS.has(variant)) throw new RangeError(`unknown automorphism variant: ${variant}`);
+}
+
+function automorphismY(k, beta, gamma, variant) {
+  return variant === "chain" ? beta - gamma ** k : beta;
+}
+
+export function automorphismOffset(k, beta, gamma, variant = "chain") {
+  assertAutomorphismInputs(k, variant);
+  if (variant === "identity") return 0;
+  return automorphismY(k, beta, gamma, variant) ** k;
+}
+
+export function automorphismFiberCoefficients(k, alpha, beta, gamma, variant = "chain") {
+  return [automorphismOffset(k, beta, gamma, variant) - alpha, 1];
+}
+
+export function automorphismFrameCurvePoint(k, t, beta, gamma, variant = "chain") {
+  const offset = automorphismOffset(k, beta, gamma, variant);
+  return { t, alpha: t + offset, slope: 1, x: t };
+}
+
+export function evaluateAutomorphismMap(k, point, variant = "chain") {
+  assertAutomorphismInputs(k, variant);
+  const [x, y, z] = point;
+  if (variant === "identity") return [x, y, z];
+  if (variant === "shear") return [x + y ** k, y, z];
+  return [x + y ** k, y + z ** k, z];
+}
+
+export function invertAutomorphismMap(k, target, variant = "chain") {
+  assertAutomorphismInputs(k, variant);
+  const { alpha, beta, gamma } = target;
+  if (variant === "identity") return [alpha, beta, gamma];
+  const y = automorphismY(k, beta, gamma, variant);
+  return [alpha - y ** k, y, gamma];
+}
+
+export function reconstructAutomorphismSource(k, root, target, variant = "chain") {
+  assertAutomorphismInputs(k, variant);
+  const y = automorphismY(k, target.beta, target.gamma, variant);
+  return {
+    x: root,
+    y: complex(y, 0),
+    z: complex(target.gamma, 0),
+    slope: complex(1, 0),
+  };
+}
+
+export function automorphismJacobian(k, point, variant = "chain") {
+  assertAutomorphismInputs(k, variant);
+  const [, y, z] = point;
+  if (variant === "identity") return [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  const firstShear = k * y ** (k - 1);
+  if (variant === "shear") return [[1, firstShear, 0], [0, 1, 0], [0, 0, 1]];
+  return [[1, firstShear, 0], [0, 1, k * z ** (k - 1)], [0, 0, 1]];
+}
+
+export function determinant3(matrix) {
+  const [a, b, c] = matrix;
+  return a[0] * (b[1] * c[2] - b[2] * c[1])
+    - a[1] * (b[0] * c[2] - b[2] * c[0])
+    + a[2] * (b[0] * c[1] - b[1] * c[0]);
+}
+
 export function derivativeCoefficients(coefficients) {
   if (coefficients.length <= 1) return [0];
   return coefficients.slice(1).map((coefficient, index) => coefficient * (index + 1));
