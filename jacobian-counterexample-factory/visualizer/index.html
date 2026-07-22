@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#050510">
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+    <meta
+      name="description"
+      content="An immersive, mathematically faithful explorer for the Jacobian counterexample factory. Rotate fibers, inspect complex roots, and watch sheets escape to infinity."
+    >
+    <title>Jacobian Fiber Lab</title>
+    <link rel="stylesheet" href="./visualizer.css">
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.module.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#controls">Skip to controls</a>
+    <div class="ambient" aria-hidden="true"></div>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="../" aria-label="Back to the Jacobian Counterexample Factory">
+          <span class="brand-mark" aria-hidden="true">J</span>
+          <span>
+            <strong>Jacobian Fiber Lab</strong>
+            <small>counterexample observatory</small>
+          </span>
+        </a>
+        <div class="topbar-actions">
+          <span class="kernel-status"><i aria-hidden="true"></i> exact equations · numerical view</span>
+          <a
+            class="source-link"
+            href="https://github.com/HumblePiCCI/HumblePiCCI.github.io/tree/main/jacobian-counterexample-factory"
+          >Source ↗</a>
+        </div>
+      </header>
+
+      <main class="lab-layout">
+        <section class="viewport-panel" aria-labelledby="viewport-title">
+          <h1 id="viewport-title" class="sr-only">Interactive Jacobian fiber visualization</h1>
+          <div id="scene" aria-hidden="true"></div>
+          <div id="webgl-fallback" class="webgl-fallback" hidden>
+            WebGL could not start. The exact fiber data remains available in the control deck.
+          </div>
+
+          <div class="mode-switch" role="group" aria-label="Visualization mode">
+            <button class="mode-button is-active" type="button" data-mode="fiber" aria-pressed="true">
+              <span aria-hidden="true">⌁</span> Fiber sculpture
+            </button>
+            <button class="mode-button" type="button" data-mode="landscape" aria-pressed="false">
+              <span aria-hidden="true">◫</span> Complex landscape
+            </button>
+          </div>
+
+          <div class="scene-legend" aria-live="polite">
+            <span><i class="legend-line legend-fiber"></i><b id="legend-primary">real fiber curve</b></span>
+            <span><i class="legend-dot legend-root"></i><b id="legend-secondary">finite preimage</b></span>
+            <span><i class="legend-dot legend-certificate"></i><b>certified collision</b></span>
+          </div>
+
+          <div class="metrics" aria-live="polite">
+            <div>
+              <small>generic degree</small>
+              <strong id="degree-metric">5</strong>
+            </div>
+            <div>
+              <small>finite roots now</small>
+              <strong id="root-count-metric">5</strong>
+            </div>
+            <div>
+              <small>max root residual</small>
+              <strong id="residual-metric">—</strong>
+            </div>
+            <div>
+              <small>Jacobian</small>
+              <strong>−2</strong>
+            </div>
+          </div>
+
+          <div class="interaction-hint">
+            <span><kbd>drag</kbd> rotate</span>
+            <span><kbd>⇧ drag</kbd> pan</span>
+            <span><kbd>scroll</kbd> zoom</span>
+            <button id="reset-camera" type="button">reset view</button>
+          </div>
+
+          <div id="root-tooltip" class="root-tooltip" hidden></div>
+        </section>
+
+        <aside id="controls" class="control-deck" aria-label="Fiber controls">
+          <div class="deck-heading">
+            <div>
+              <p class="eyebrow">Live target</p>
+              <h2>Shape the fiber</h2>
+            </div>
+            <button id="animate-target" class="icon-button" type="button" aria-pressed="false">
+              <span aria-hidden="true">▶</span><span class="sr-only">Animate target alpha</span>
+            </button>
+          </div>
+
+          <div class="degree-control">
+            <label for="degree">Generic fiber degree <output id="degree-output" for="degree">d = 5</output></label>
+            <input id="degree" type="range" min="3" max="12" step="1" value="5">
+            <div class="range-scale" aria-hidden="true"><span>3</span><span>12</span></div>
+          </div>
+
+          <fieldset class="target-controls">
+            <legend>Target coordinates</legend>
+            <label for="alpha">
+              <span><i class="coordinate coordinate-alpha">α</i> output A</span>
+              <output id="alpha-output" for="alpha">8</output>
+            </label>
+            <input id="alpha" type="range" min="-64" max="64" step="0.01" value="8">
+
+            <label for="beta">
+              <span><i class="coordinate coordinate-beta">β</i> output B</span>
+              <output id="beta-output" for="beta">16</output>
+            </label>
+            <input id="beta" type="range" min="-24" max="24" step="0.01" value="16">
+
+            <label for="gamma">
+              <span><i class="coordinate coordinate-gamma">γ</i> output C</span>
+              <output id="gamma-output" for="gamma">1</output>
+            </label>
+            <input id="gamma" type="range" min="-2" max="2" step="0.01" value="1">
+          </fieldset>
+
+          <div class="preset-group" role="group" aria-label="Target presets">
+            <button id="collision-preset" class="preset-button is-active" type="button">
+              <span>Exact collision</span><small>two certified inputs</small>
+            </button>
+            <button id="drift-preset" class="preset-button" type="button">
+              <span>Nearby fiber</span><small>move off the certificate</small>
+            </button>
+            <button id="escape-preset" class="preset-button" type="button">
+              <span>Escape wall</span><small>a sheet runs to infinity</small>
+            </button>
+          </div>
+
+          <section class="equation-panel" aria-labelledby="equation-title">
+            <div class="section-heading">
+              <p id="equation-title" class="eyebrow">Fiber equation</p>
+              <span id="solver-status">converged</span>
+            </div>
+            <p class="equation">P(T) = h<sub>d</sub>(T, γ) + βT − 2α</p>
+            <p id="equation-detail" class="equation-detail">degree 5 · 5 finite roots</p>
+          </section>
+
+          <section class="root-inspector" aria-labelledby="root-title">
+            <div class="section-heading">
+              <p id="root-title" class="eyebrow">Selected sheet</p>
+              <span id="root-index">root 1 / 5</span>
+            </div>
+            <button id="previous-root" class="root-nav" type="button" aria-label="Previous root">←</button>
+            <button id="next-root" class="root-nav root-nav-next" type="button" aria-label="Next root">→</button>
+            <dl>
+              <div><dt>T</dt><dd id="root-t">—</dd></div>
+              <div><dt>x</dt><dd id="root-x">—</dd></div>
+              <div><dt>y</dt><dd id="root-y">—</dd></div>
+              <div><dt>z</dt><dd id="root-z">—</dd></div>
+            </dl>
+          </section>
+
+          <div class="truth-strip">
+            <span id="truth-icon" aria-hidden="true">✓</span>
+            <p><strong id="truth-title">Certificate verified</strong><small id="truth-detail">distinct inputs → (8, 16, 1)</small></p>
+          </div>
+
+          <details class="how-to-read">
+            <summary>What am I looking at?</summary>
+            <p>
+              The sculpture plots every real parameter <i>T</i> against the target value α and reconstructed
+              source coordinate <i>x = 2/P′(T)</i>. The glowing target plane cuts the sculpture once for every
+              real preimage. In landscape mode, all complex roots appear as wells of |P(T)|.
+            </p>
+          </details>
+        </aside>
+      </main>
+
+      <footer class="footer-note">
+        <span>Drag the mathematics, not an artist’s approximation.</span>
+        <span>Exact family formulas · numerical root rendering · source available for audit</span>
+      </footer>
+    </div>
+
+    <noscript>This explorer requires JavaScript to render the exact fiber equations interactively.</noscript>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

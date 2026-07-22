@@ -35,6 +35,29 @@ Normalize every determinant to \(1\):
 jacobian-factory --count 6 --normalize --verify-through 8
 ```
 
+## Interactive fiber lab
+
+The browser-based [Jacobian Fiber Lab](visualizer/) turns the exact fiber
+equation into two linked, rotatable views:
+
+- a real fiber sculpture showing how finite sheets intersect a target and
+  escape to infinity when `P'(T)` vanishes; and
+- a complex polynomial landscape whose wells are all finite roots of the
+  current fiber.
+
+Choose `d=3,...,12`, move the target `(alpha, beta, gamma)`, load exact
+collision certificates, animate a target across the family, or jump to an
+escape wall. Every selected root reconstructs its source coordinates. The
+visualizer distinguishes exact repository certificates from numerical browser
+root solving and reports the maximum numerical residual.
+
+Serve the repository locally and open the visualizer:
+
+```bash
+python -m http.server 8000
+open http://localhost:8000/jacobian-counterexample-factory/visualizer/
+```
+
 Generate from Python:
 
 ```python

@@ -27,3 +27,17 @@ jobs:
         run: pytest jacobian-counterexample-factory/tests
       - name: CLI smoke test
         run: jacobian-factory --count 4 --verify-through 8
+
+  visualizer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check browser modules
+        run: |
+          node --check jacobian-counterexample-factory/visualizer/math.js
+          node --check jacobian-counterexample-factory/visualizer/app.js
+      - name: Test visualizer mathematics
+        run: node --test jacobian-counterexample-factory/visualizer/tests/math.test.mjs
