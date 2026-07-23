@@ -97,8 +97,8 @@ function quantile(values, q) {
   const lo = Math.floor(p), hi = Math.ceil(p);
   return lo === hi ? sorted[lo] : sorted[lo] * (hi - p) + sorted[hi] * (p - lo);
 }
-function targetsMatch(a, b, tolerance = 1e-10) {
-  return Math.abs(a.alpha - b.alpha) <= tolerance && Math.abs(a.beta - b.beta) <= tolerance && Math.abs(a.gamma - b.gamma) <= tolerance;
+function targetsMatch(a, b) {
+  return a.alpha === b.alpha && a.beta === b.beta && a.gamma === b.gamma;
 }
 function formatResidual(value) {
   if (!Number.isFinite(value)) return "undefined";
@@ -741,7 +741,7 @@ elements.presetTwo.addEventListener("click", () => isAutomorphism() ? setAutomor
 elements.presetThree.addEventListener("click", () => {
   if (isAutomorphism()) { setAutomorphismVariant("chain"); return; }
   const points = realCriticalTargets(state.d, state.beta, state.gamma);
-  const nearest = points.reduce((best, point) => !best || Math.abs(point.alpha-state.alpha)<Math.abs(best.alpha-state.alpha) ? point : best, null);
+  const nearest = points.reduce((best, point) => !best || Math.abs(point.alpha-state.alpha)<Math.abs(best.alpha-state-state.alpha) ? point : best, null);
   if (nearest) applyTarget({ alpha: nearest.alpha, beta: state.beta, gamma: state.gamma }, "escape");
 });
 elements.animate.addEventListener("click", () => {
