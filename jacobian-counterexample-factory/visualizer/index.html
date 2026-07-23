@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#050712">
+    <meta name="description" content="An immersive, mathematically faithful atlas of Jacobian fibers, affine chart boundaries, and sheets escaping through infinity.">
+    <title>Jacobian Fiber Lab</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="./visualizer.css">
+  </head>
+  <body data-family="counterexample">
+    <a class="skip-link" href="#controls">Skip to controls</a>
+    <div class="aurora" aria-hidden="true"></div>
+    <div class="shell">
+      <header class="topbar">
+        <a class="brand" href="../" aria-label="Back to Jacobian Counterexample Factory">
+          <span class="brand-glyph" aria-hidden="true">∂</span>
+          <span><strong>Jacobian Fiber Lab</strong><small>an atlas of global overlap</small></span>
+        </a>
+        <div class="topbar-status">
+          <span class="status-pulse"><i></i> exact model · numerical renderer</span>
+          <a href="https://github.com/HumblePiCCI/HumblePiCCI.github.io/tree/main/jacobian-counterexample-factory" target="_blank" rel="noreferrer">source ↗</a>
+        </div>
+      </header>
+
+      <main class="lab">
+        <section class="viewport" aria-labelledby="viewport-title">
+          <h1 id="viewport-title" class="sr-only">Interactive Jacobian fiber atlas</h1>
+          <canvas id="scene" data-testid="scene" aria-label="Rotatable mathematical visualization"></canvas>
+          <div class="canvas-vignette" aria-hidden="true"></div>
+
+          <div class="mode-switch" role="group" aria-label="Visualization mode">
+            <button type="button" class="mode-button is-active" data-mode="fiber" aria-pressed="true"><span>⌁</span> Fiber atlas</button>
+            <button type="button" class="mode-button" data-mode="landscape" aria-pressed="false"><span>◫</span> Complex landscape</button>
+          </div>
+
+          <div id="classification" class="classification" aria-live="polite">
+            <span id="classification-symbol">≠</span>
+            <p><strong id="classification-title">Non-injective Keller map</strong><small id="classification-detail">constant Jacobian · certified global overlap</small></p>
+          </div>
+
+          <div class="transform-card">
+            <small>display coordinates</small>
+            <strong id="axis-transform">adaptive asinh chart</strong>
+            <span>Actual values remain uncompressed in the inspector.</span>
+          </div>
+
+          <div class="metrics" aria-live="polite">
+            <div><small id="degree-metric-label">generic degree</small><strong id="degree-metric">5</strong></div>
+            <div><small>finite affine</small><strong id="finite-metric">—</strong></div>
+            <div><small>escaping sheets</small><strong id="escape-metric">—</strong></div>
+            <div><small>Jacobian</small><strong id="jacobian-metric">−2</strong></div>
+            <div><small>relative residual</small><strong id="residual-metric">—</strong></div>
+          </div>
+
+          <div class="scene-legend" aria-live="polite">
+            <span><i class="legend-line"></i><b id="legend-curve">real fiber curve</b></span>
+            <span><i class="legend-dot finite"></i><b id="legend-finite">finite preimage</b></span>
+            <span><i class="legend-dot boundary"></i><b>x = 0 boundary chart</b></span>
+            <span><i class="legend-ring"></i><b>escape / repeated root</b></span>
+          </div>
+
+          <div id="tooltip" class="tooltip" hidden></div>
+          <div class="interaction-hint">
+            <span><kbd>drag</kbd> rotate</span><span><kbd>⇧ drag</kbd> pan</span><span><kbd>wheel</kbd> zoom</span>
+            <button id="reset-camera" type="button">reset view</button>
+          </div>
+          <div id="render-status" class="render-status" role="status">assembling the fiber…</div>
+        </section>
+
+        <aside id="controls" class="controls" aria-label="Jacobian Fiber Lab controls">
+          <div class="family-switch" role="group" aria-label="Choose map family">
+            <button type="button" data-family="automorphism" aria-pressed="false"><i>✓</i><span>Automorphisms<small>det 1 · one affine source</small></span></button>
+            <button type="button" data-family="counterexample" class="is-active" aria-pressed="true"><i>≠</i><span>Counterexamples<small>det −2 · global overlap</small></span></button>
+          </div>
+
+          <div class="deck-heading">
+            <div><p id="deck-eyebrow">Live target</p><h2 id="deck-title">Shape the fiber</h2></div>
+            <button id="animate-target" class="play-button" type="button" aria-pressed="false" title="Animate alpha"><span>▶</span><span class="sr-only">Animate target alpha</span></button>
+          </div>
+
+          <section class="control-section degree-section">
+            <label for="degree"><span id="degree-label">Generic fiber degree</span><output id="degree-output" for="degree">d = 5</output></label>
+            <input id="degree" type="range" min="3" max="12" step="1" value="5">
+            <div class="range-scale"><span id="degree-min">3</span><span id="degree-max">12</span></div>
+          </section>
+
+          <fieldset class="control-section target-controls">
+            <legend>Target coordinates</legend>
+            <div class="coordinate-row">
+              <label for="alpha"><i>α</i><span>output A</span></label>
+              <input id="alpha" type="range" min="-64" max="64" step="0.01" value="8">
+              <input id="alpha-number" class="number-input" type="number" step="0.01" value="8" aria-label="Alpha numeric value">
+            </div>
+            <div class="coordinate-row">
+              <label for="beta"><i>β</i><span>output B</span></label>
+              <input id="beta" type="range" min="-24" max="24" step="0.01" value="16">
+              <input id="beta-number" class="number-input" type="number" step="0.01" value="16" aria-label="Beta numeric value">
+            </div>
+            <div class="coordinate-row">
+              <label for="gamma"><i>γ</i><span>output C</span></label>
+              <input id="gamma" type="range" min="-2" max="2" step="0.01" value="1">
+              <input id="gamma-number" class="number-input" type="number" step="0.01" value="1" aria-label="Gamma numeric value">
+            </div>
+          </fieldset>
+
+          <div class="preset-grid" role="group" aria-label="Fiber presets">
+            <button id="preset-one" type="button" class="is-active"><strong>Exact collision</strong><small>stored certificate</small></button>
+            <button id="preset-two" type="button"><strong>Nearby fiber</strong><small>move off certificate</small></button>
+            <button id="preset-three" type="button"><strong>Escape wall</strong><small>P and P′ share a root</small></button>
+          </div>
+
+          <section class="equation-panel control-section" aria-labelledby="equation-heading">
+            <div class="section-heading"><p id="equation-heading">Fiber equation</p><span id="solver-status">converged</span></div>
+            <div id="equation-expression" class="equation">P(T) = h<sub>d</sub>(T, γ) + βT − 2α</div>
+            <p id="equation-detail">degree 5 in the current T-chart</p>
+          </section>
+
+          <section class="accounting control-section" aria-labelledby="accounting-heading">
+            <div class="section-heading"><p id="accounting-heading">Fiber accounting</p><span id="accounting-total">5 / 5 sheets</span></div>
+            <dl>
+              <div><dt>simple roots, x ≠ 0</dt><dd id="count-chart">—</dd></div>
+              <div><dt>finite sources, x = 0</dt><dd id="count-boundary">—</dd></div>
+              <div><dt>escaping through infinity</dt><dd id="count-escape">—</dd></div>
+              <div><dt>numerically unresolved</dt><dd id="count-unresolved">—</dd></div>
+            </dl>
+          </section>
+
+          <section class="inspector control-section" aria-labelledby="inspector-heading">
+            <div class="section-heading"><p id="inspector-heading">Selected sheet</p><span id="sheet-index">—</span></div>
+            <div class="sheet-nav"><button id="previous-sheet" type="button" aria-label="Previous sheet">←</button><button id="next-sheet" type="button" aria-label="Next sheet">→</button></div>
+            <p id="sheet-status" class="sheet-status">—</p>
+            <dl>
+              <div><dt>T</dt><dd id="root-t">—</dd></div>
+              <div><dt>multiplicity</dt><dd id="root-multiplicity">—</dd></div>
+              <div><dt>x</dt><dd id="root-x">—</dd></div>
+              <div><dt>y</dt><dd id="root-y">—</dd></div>
+              <div><dt>z</dt><dd id="root-z">—</dd></div>
+              <div><dt>chart</dt><dd id="root-chart">—</dd></div>
+            </dl>
+          </section>
+
+          <div id="truth-strip" class="truth-strip">
+            <span id="truth-icon">✓</span>
+            <p><strong id="truth-title">Stored exact certificate</strong><small id="truth-detail">browser numerical re-evaluation pending</small></p>
+          </div>
+
+          <details class="explanation">
+            <summary>How to read this honestly</summary>
+            <p id="how-to-text">Simple roots of P reconstruct finite sources on x ≠ 0. The x = 0 boundary chart is counted separately. Repeated roots have P′ = 0, so x = 2/P′ cannot be finite and the corresponding sheets escape through infinity. Display axes are adaptively compressed and disclosed above the scene.</p>
+          </details>
+        </aside>
+      </main>
+
+      <footer>
+        <strong id="footer-lead">Nothing folds locally. The overlap is global.</strong>
+        <span id="footer-detail">Exact family formulas · explicit chart accounting · numerical root rendering</span>
+      </footer>
+    </div>
+    <noscript>This explorer requires JavaScript.</noscript>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

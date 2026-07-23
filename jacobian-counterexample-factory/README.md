@@ -35,6 +35,39 @@ Normalize every determinant to \(1\):
 jacobian-factory --count 6 --normalize --verify-through 8
 ```
 
+## Interactive fiber lab
+
+The browser-based [Jacobian Fiber Lab](visualizer/) compares determinant-one
+polynomial automorphisms with this repository's counterexamples in two linked,
+rotatable views:
+
+- a real fiber atlas built from
+  \(\alpha(T)=(h_d(T,\gamma)+\beta T)/2\) and
+  \(x(T)=2/P'(T)\); and
+- a complex landscape of the same fiber polynomial
+  \(P(T)=h_d(T,\gamma)+\beta T-2\alpha\).
+
+The visualizer performs complete affine-chart bookkeeping. Simple roots
+reconstruct finite sources on \(x\ne0\); finite sources on \(x=0\) are
+reconstructed separately; repeated roots with \(P=P'=0\) are classified as
+escaping sheets; and any remaining degree loss is reported as a nonproper
+branch rather than silently relabeled. Adaptive, disclosed `asinh` display
+coordinates keep far roots visible in both scenes while the inspector retains
+actual uncompressed values.
+
+Switch among identity, single-shear, and chained-shear automorphisms, each with
+determinant `1`, an explicit inverse, and one preimage per target. Then explore
+`d=3,...,12` counterexamples, exact stored collision certificates, nearby
+fibers, and tangencies. The browser distinguishes exact SymPy certificates from
+numerical re-evaluation and reports the maximum relative root residual.
+
+Serve the repository locally and open the visualizer:
+
+```bash
+python -m http.server 8000
+open http://localhost:8000/jacobian-counterexample-factory/visualizer/
+```
+
 Generate from Python:
 
 ```python
