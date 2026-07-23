@@ -1,1076 +1,811 @@
-import * as THREE from "three";
-import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.172.0/examples/jsm/controls/OrbitControls.js";
 import {
-  automorphismFiberCoefficients,
-  automorphismFrameCurvePoint,
+  analyzeAutomorphismFiber,
+  analyzeCounterexampleFiber,
+  automorphismOffset,
   cAbs,
   collisionCertificate,
+  complex,
+  deriveFiberDisplayTransform,
+  deriveLandscapeDisplayTransform,
   evaluatePolynomial,
-  fiberPolynomialCoefficients,
   formatComplex,
   formatNumber,
   frameCurvePoint,
+  isFiniteComplex,
+  polynomialEvaluationScale,
   realCriticalTargets,
-  reconstructAutomorphismSource,
-  reconstructSource,
-  solvePolynomial,
   threeRealPreset,
   verifyCollisionNumerically,
 } from "./math.js";
 
-const COLORS = {
-  cyan: 0x57e6ff,
-  violet: 0xae7dff,
-  magenta: 0xff5edb,
-  gold: 0xffd36a,
-  green: 0x63f2b5,
-  ink: 0xf5f7ff,
-  muted: 0x7d87a9,
-  deep: 0x070817,
-};
-
+const $ = (selector) => document.querySelector(selector);
+const $$ = (selector) => [...document.querySelectorAll(selector)];
 const elements = {
-  scene: document.querySelector("#scene"),
-  fallback: document.querySelector("#webgl-fallback"),
-  degree: document.querySelector("#degree"),
-  degreeOutput: document.querySelector("#degree-output"),
-  alpha: document.querySelector("#alpha"),
-  beta: document.querySelector("#beta"),
-  gamma: document.querySelector("#gamma"),
-  alphaOutput: document.querySelector("#alpha-output"),
-  betaOutput: document.querySelector("#beta-output"),
-  gammaOutput: document.querySelector("#gamma-output"),
-  animateTarget: document.querySelector("#animate-target"),
-  resetCamera: document.querySelector("#reset-camera"),
-  collisionPreset: document.querySelector("#collision-preset"),
-  driftPreset: document.querySelector("#drift-preset"),
-  escapePreset: document.querySelector("#escape-preset"),
-  modeButtons: [...document.querySelectorAll("[data-mode]")],
-  degreeMetric: document.querySelector("#degree-metric"),
-  rootCountMetric: document.querySelector("#root-count-metric"),
-  residualMetric: document.querySelector("#residual-metric"),
-  equationDetail: document.querySelector("#equation-detail"),
-  solverStatus: document.querySelector("#solver-status"),
-  rootIndex: document.querySelector("#root-index"),
-  rootT: document.querySelector("#root-t"),
-  rootX: document.querySelector("#root-x"),
-  rootY: document.querySelector("#root-y"),
-  rootZ: document.querySelector("#root-z"),
-  previousRoot: document.querySelector("#previous-root"),
-  nextRoot: document.querySelector("#next-root"),
-  truthStrip: document.querySelector(".truth-strip"),
-  truthIcon: document.querySelector("#truth-icon"),
-  truthTitle: document.querySelector("#truth-title"),
-  truthDetail: document.querySelector("#truth-detail"),
-  tooltip: document.querySelector("#root-tooltip"),
-  legendPrimary: document.querySelector("#legend-primary"),
-  legendSecondary: document.querySelector("#legend-secondary"),
-  legendProof: document.querySelector("#legend-proof"),
-  legendProofDot: document.querySelector("#legend-proof-dot"),
-  familyButtons: [...document.querySelectorAll(".family-button[data-family]")],
-  classificationBadge: document.querySelector("#classification-badge"),
-  classificationSymbol: document.querySelector("#classification-symbol"),
-  classificationTitle: document.querySelector("#classification-title"),
-  classificationDetail: document.querySelector("#classification-detail"),
-  degreeMetricLabel: document.querySelector("#degree-metric-label"),
-  jacobianMetric: document.querySelector("#jacobian-metric"),
-  degreeLabel: document.querySelector("#degree-label"),
-  degreeMin: document.querySelector("#degree-min"),
-  degreeMax: document.querySelector("#degree-max"),
-  deckEyebrow: document.querySelector("#deck-eyebrow"),
-  deckTitle: document.querySelector("#deck-title"),
-  equationExpression: document.querySelector("#equation-expression"),
-  presetOneTitle: document.querySelector("#preset-one-title"),
-  presetOneDetail: document.querySelector("#preset-one-detail"),
-  presetTwoTitle: document.querySelector("#preset-two-title"),
-  presetTwoDetail: document.querySelector("#preset-two-detail"),
-  presetThreeTitle: document.querySelector("#preset-three-title"),
-  presetThreeDetail: document.querySelector("#preset-three-detail"),
-  howToText: document.querySelector("#how-to-text"),
-  brandSubtitle: document.querySelector("#brand-subtitle"),
-  footerLead: document.querySelector("#footer-lead"),
-  footerDetail: document.querySelector("#footer-detail"),
+  canvas: $("#scene"), renderStatus: $("#render-status"), tooltip: $("#tooltip"),
+  familyButtons: $$('[data-family]'), modeButtons: $$('[data-mode]'),
+  degree: $("#degree"), degreeOutput: $("#degree-output"), degreeLabel: $("#degree-label"),
+  degreeMin: $("#degree-min"), degreeMax: $("#degree-max"),
+  alpha: $("#alpha"), beta: $("#beta"), gamma: $("#gamma"),
+  alphaNumber: $("#alpha-number"), betaNumber: $("#beta-number"), gammaNumber: $("#gamma-number"),
+  animate: $("#animate-target"), resetCamera: $("#reset-camera"),
+  presetOne: $("#preset-one"), presetTwo: $("#preset-two"), presetThree: $("#preset-three"),
+  classificationSymbol: $("#classification-symbol"), classificationTitle: $("#classification-title"),
+  classificationDetail: $("#classification-detail"), deckEyebrow: $("#deck-eyebrow"), deckTitle: $("#deck-title"),
+  degreeMetricLabel: $("#degree-metric-label"), degreeMetric: $("#degree-metric"), finiteMetric: $("#finite-metric"),
+  escapeMetric: $("#escape-metric"), jacobianMetric: $("#jacobian-metric"), residualMetric: $("#residual-metric"),
+  axisTransform: $("#axis-transform"), solverStatus: $("#solver-status"), equationExpression: $("#equation-expression"),
+  equationDetail: $("#equation-detail"), accountingTotal: $("#accounting-total"), countChart: $("#count-chart"),
+  countBoundary: $("#count-boundary"), countEscape: $("#count-escape"), countUnresolved: $("#count-unresolved"),
+  sheetIndex: $("#sheet-index"), sheetStatus: $("#sheet-status"), previousSheet: $("#previous-sheet"), nextSheet: $("#next-sheet"),
+  rootT: $("#root-t"), rootMultiplicity: $("#root-multiplicity"), rootX: $("#root-x"), rootY: $("#root-y"),
+  rootZ: $("#root-z"), rootChart: $("#root-chart"), truthStrip: $("#truth-strip"), truthIcon: $("#truth-icon"),
+  truthTitle: $("#truth-title"), truthDetail: $("#truth-detail"), howToText: $("#how-to-text"),
+  legendCurve: $("#legend-curve"), legendFinite: $("#legend-finite"), footerLead: $("#footer-lead"), footerDetail: $("#footer-detail"),
 };
 
 const initialCertificate = collisionCertificate(5);
 const state = {
   family: "counterexample",
   variant: "chain",
+  mode: "fiber",
   d: 5,
   ...initialCertificate.target,
-  mode: "fiber",
   activePreset: "collision",
-  animateTarget: false,
+  animate: false,
   animationCenter: initialCertificate.target.alpha,
-  selectedRoot: 0,
-  solution: null,
-  escapeT: null,
-  lastStructureKey: "",
+  selectedSheet: 0,
+  analysis: null,
+  sceneData: null,
   lastAnimatedUpdate: 0,
 };
-
 const familySnapshots = {
-  automorphism: {
-    d: 3,
-    variant: "chain",
-    alpha: 2,
-    beta: 1,
-    gamma: 0,
-    activePreset: "chain",
-    escapeT: null,
-  },
   counterexample: null,
+  automorphism: { d: 3, variant: "chain", alpha: 2, beta: 1, gamma: 0, activePreset: "chain" },
+};
+const camera = {
+  yaw: -0.58,
+  pitch: 0.34,
+  zoom: 1,
+  panX: 0,
+  panY: 0,
+  autoRotate: !matchMedia("(prefers-reduced-motion: reduce)").matches,
+};
+const pointerState = { down: false, mode: "rotate", x: 0, y: 0, moved: 0 };
+const ctx = elements.canvas.getContext("2d", { alpha: false, desynchronized: true });
+let viewport = { width: 1, height: 1, dpr: 1 };
+let projectedMarkers = [];
+let hoveredMarker = null;
+let stars = [];
+let frameRequested = true;
+let lastFrameTime = 0;
+
+const COLORS = {
+  cyan: "#5be8ff", violet: "#a986ff", magenta: "#ff62d2", gold: "#ffd36a",
+  green: "#62efb4", orange: "#ff9a62", ink: "#f4f7ff", muted: "#7d89ad",
 };
 
-function isAutomorphism() {
-  return state.family === "automorphism";
+function isAutomorphism() { return state.family === "automorphism"; }
+function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+function compress(value, scale = 1) {
+  if (!Number.isFinite(value)) return Math.sign(value || 1) * 5.8;
+  return Math.asinh(value / scale);
+}
+function quantile(values, q) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const p = (sorted.length - 1) * q;
+  const lo = Math.floor(p), hi = Math.ceil(p);
+  return lo === hi ? sorted[lo] : sorted[lo] * (hi - p) + sorted[hi] * (p - lo);
+}
+function targetsMatch(a, b, tolerance = 1e-10) {
+  return Math.abs(a.alpha - b.alpha) <= tolerance && Math.abs(a.beta - b.beta) <= tolerance && Math.abs(a.gamma - b.gamma) <= tolerance;
+}
+function formatResidual(value) {
+  if (!Number.isFinite(value)) return "undefined";
+  if (value < 1e-13) return "< 1e−13";
+  return value.toExponential(2).replace("e-", "e−");
+}
+function snapshotTarget() { return { alpha: state.alpha, beta: state.beta, gamma: state.gamma }; }
+
+function analyzeCurrentFiber() {
+  const target = snapshotTarget();
+  state.analysis = isAutomorphism()
+    ? analyzeAutomorphismFiber(state.d, target, state.variant)
+    : analyzeCounterexampleFiber(state.d, target);
+  if (state.selectedSheet >= state.analysis.sheets.length) state.selectedSheet = 0;
 }
 
-function currentPolynomialCoefficients() {
-  return isAutomorphism()
-    ? automorphismFiberCoefficients(state.d, state.alpha, state.beta, state.gamma, state.variant)
-    : fiberPolynomialCoefficients(state.d, state.alpha, state.beta, state.gamma);
+function currentCriticalPoints() {
+  return isAutomorphism() ? [] : realCriticalTargets(state.d, state.beta, state.gamma);
 }
 
-function currentFrameCurvePoint(t) {
-  return isAutomorphism()
-    ? automorphismFrameCurvePoint(state.d, t, state.beta, state.gamma, state.variant)
-    : frameCurvePoint(state.d, t, state.beta, state.gamma);
-}
-
-function currentSource(root) {
-  return isAutomorphism()
-    ? reconstructAutomorphismSource(state.d, root, state, state.variant)
-    : reconstructSource(state.d, root, state);
-}
-
-function fiberCenter() {
-  if (!isAutomorphism()) return { t: 0, alpha: 0, x: 0 };
-  const root = state.solution?.roots[0]?.re ?? 0;
-  return { t: root, alpha: state.alpha, x: root };
-}
-
-function landscapeCenterT() {
-  return isAutomorphism() ? state.solution?.roots[0]?.re ?? 0 : 0;
-}
-
-let renderer;
-let scene;
-let camera;
-let controls;
-let structureGroup;
-let overlayGroup;
-let interactiveRoots = [];
-let selectedMeshes = [];
-let hoveredRoot = null;
-const raycaster = new THREE.Raycaster();
-const pointer = new THREE.Vector2();
-const clock = new THREE.Clock();
-
-function createRenderer() {
-  try {
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
-  } catch (error) {
-    console.error(error);
-    elements.fallback.hidden = false;
-    return false;
+function fiberWorldPoint(point, tTransform, rootCenter = 0) {
+  if (isAutomorphism()) {
+    return {
+      x: (point.t - rootCenter) * 1.25,
+      y: (point.alpha - state.alpha) * 1.25,
+      z: (point.x - rootCenter) * 1.25,
+    };
   }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.15;
-  elements.scene.append(renderer.domElement);
-  return true;
-}
-
-function seededRandom(seed) {
-  let value = seed >>> 0;
-  return () => {
-    value = (1664525 * value + 1013904223) >>> 0;
-    return value / 4294967296;
+  return {
+    x: tTransform.forward(point.t),
+    y: clamp(compress(point.alpha - state.alpha, 2.2) * 1.55, -5.6, 5.6),
+    z: clamp(compress(point.x, 1.1) * 1.25, -5.6, 5.6),
   };
 }
 
-function createStarfield() {
-  const random = seededRandom(20260720);
-  const positions = [];
-  const colors = [];
-  const cyan = new THREE.Color(COLORS.cyan);
-  const violet = new THREE.Color(COLORS.violet);
-  for (let index = 0; index < 1100; index += 1) {
-    const radius = 12 + random() * 17;
-    const theta = random() * Math.PI * 2;
-    const phi = Math.acos(2 * random() - 1);
-    positions.push(
-      radius * Math.sin(phi) * Math.cos(theta),
-      radius * Math.cos(phi),
-      radius * Math.sin(phi) * Math.sin(theta),
-    );
-    const color = cyan.clone().lerp(violet, random());
-    colors.push(color.r, color.g, color.b);
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-  const material = new THREE.PointsMaterial({
-    size: 0.035,
-    vertexColors: true,
-    transparent: true,
-    opacity: 0.62,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-  });
-  const stars = new THREE.Points(geometry, material);
-  stars.rotation.z = 0.28;
-  scene.add(stars);
-}
-
-function initializeScene() {
-  if (!createRenderer()) return;
-  scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(COLORS.deep, 0.035);
-  camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
-  camera.position.set(9.5, 6.6, 10.5);
-
-  controls = new OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.055;
-  controls.enablePan = true;
-  controls.minDistance = 4;
-  controls.maxDistance = 30;
-  controls.autoRotate = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  controls.autoRotateSpeed = 0.34;
-  controls.target.set(0, 0.35, 0);
-
-  scene.add(new THREE.HemisphereLight(0xb9d8ff, 0x170c2f, 1.35));
-  const keyLight = new THREE.DirectionalLight(COLORS.cyan, 2.2);
-  keyLight.position.set(6, 9, 5);
-  scene.add(keyLight);
-  const rimLight = new THREE.PointLight(COLORS.magenta, 25, 30, 2);
-  rimLight.position.set(-7, 3, -6);
-  scene.add(rimLight);
-  const goldLight = new THREE.PointLight(COLORS.gold, 18, 22, 2);
-  goldLight.position.set(5, -2, 4);
-  scene.add(goldLight);
-
-  structureGroup = new THREE.Group();
-  overlayGroup = new THREE.Group();
-  scene.add(structureGroup, overlayGroup);
-  createStarfield();
-
-  const resizeObserver = new ResizeObserver(resizeRenderer);
-  resizeObserver.observe(elements.scene);
-  renderer.domElement.addEventListener("pointermove", handlePointerMove);
-  renderer.domElement.addEventListener("pointerleave", clearHover);
-  renderer.domElement.addEventListener("click", handleRootClick);
-  controls.addEventListener("start", () => {
-    controls.autoRotate = false;
-  });
-  resizeRenderer();
-  renderer.setAnimationLoop(renderFrame);
-}
-
-function resizeRenderer() {
-  if (!renderer || !camera) return;
-  const width = Math.max(1, elements.scene.clientWidth);
-  const height = Math.max(1, elements.scene.clientHeight);
-  renderer.setSize(width, height, false);
-  camera.aspect = width / height;
-  camera.updateProjectionMatrix();
-}
-
-function disposeObject(object) {
-  object.traverse((child) => {
-    child.geometry?.dispose?.();
-    if (Array.isArray(child.material)) child.material.forEach((material) => material.dispose?.());
-    else child.material?.dispose?.();
-    child.texture?.dispose?.();
-  });
-}
-
-function clearGroup(group) {
-  while (group.children.length) {
-    const child = group.children.pop();
-    disposeObject(child);
-  }
-}
-
-function compress(value, scale = 1) {
-  if (!Number.isFinite(value)) return Math.sign(value || 1) * 6.5;
-  return Math.sign(value) * Math.log1p(Math.abs(value) / scale);
-}
-
-function mapFiberPoint(point) {
-  const center = fiberCenter();
-  if (isAutomorphism()) {
-    return new THREE.Vector3(
-      (point.t - center.t) * 1.3,
-      (point.alpha - center.alpha) * 1.3,
-      (point.x - center.x) * 1.3,
-    );
-  }
-  return new THREE.Vector3(
-    point.t * 1.72,
-    compress(point.alpha, 2.2) * 1.58,
-    compress(point.x, 1.1) * 1.24,
-  );
-}
-
-function createTextSprite(text, color = "#f5f7ff") {
-  const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 128;
-  const context = canvas.getContext("2d");
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  context.font = "500 42px Inter, system-ui, sans-serif";
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.fillStyle = color;
-  context.shadowColor = color;
-  context.shadowBlur = 14;
-  context.fillText(text, canvas.width / 2, canvas.height / 2);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
-  const sprite = new THREE.Sprite(material);
-  sprite.scale.set(2.2, 0.55, 1);
-  return sprite;
-}
-
-function createAxisLine(start, end, color, opacity = 0.4) {
-  const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
-  const material = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
-  return new THREE.Line(geometry, material);
-}
-
-function addFiberAxes() {
-  const grid = new THREE.GridHelper(12, 12, 0x2d405d, 0x19243b);
-  grid.material.transparent = true;
-  grid.material.opacity = 0.22;
-  grid.position.y = -4.5;
-  structureGroup.add(grid);
-  structureGroup.add(
-    createAxisLine(new THREE.Vector3(-5.8, -4.5, 0), new THREE.Vector3(5.8, -4.5, 0), COLORS.cyan),
-    createAxisLine(new THREE.Vector3(0, -5.3, 0), new THREE.Vector3(0, 5.8, 0), COLORS.violet),
-    createAxisLine(new THREE.Vector3(0, -4.5, -5.8), new THREE.Vector3(0, -4.5, 5.8), COLORS.magenta),
-  );
-  const tLabel = createTextSprite(isAutomorphism() ? "T − unique root" : "T", isAutomorphism() ? "#63f2b5" : "#57e6ff");
-  tLabel.position.set(6.1, -4.45, 0);
-  const alphaLabel = createTextSprite(isAutomorphism() ? "α − target" : "α target", "#ae7dff");
-  alphaLabel.position.set(0, 6.1, 0);
-  const xLabel = createTextSprite(isAutomorphism() ? "x − unique preimage" : "escape  asinh(x)", isAutomorphism() ? "#57e6ff" : "#ff5edb");
-  xLabel.position.set(0, -4.35, 6.2);
-  structureGroup.add(tLabel, alphaLabel, xLabel);
-}
-
-function addFiberSegment(points, index) {
-  if (points.length < 4) return;
-  const curve = new THREE.CatmullRomCurve3(points, false, "centripetal", 0.45);
-  const tubularSegments = Math.min(260, Math.max(30, points.length * 2));
-  const color = isAutomorphism()
-    ? index % 2 === 0 ? COLORS.green : COLORS.cyan
-    : index % 2 === 0 ? COLORS.cyan : COLORS.violet;
-  const glowGeometry = new THREE.TubeGeometry(curve, tubularSegments, 0.105, 6, false);
-  const glowMaterial = new THREE.MeshBasicMaterial({
-    color,
-    transparent: true,
-    opacity: 0.075,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-  });
-  const coreGeometry = new THREE.TubeGeometry(curve, tubularSegments, 0.034, 8, false);
-  const coreMaterial = new THREE.MeshStandardMaterial({
-    color,
-    emissive: color,
-    emissiveIntensity: 2.5,
-    roughness: 0.22,
-    metalness: 0.35,
-  });
-  structureGroup.add(new THREE.Mesh(glowGeometry, glowMaterial), new THREE.Mesh(coreGeometry, coreMaterial));
-}
-
-function buildFiberStructure() {
-  addFiberAxes();
-  const center = fiberCenter();
-  const tRange = isAutomorphism() ? 4.1 : state.d === 3 ? 4.2 : 3.25;
-  const samples = 760;
+function buildFiberScene() {
+  const analysis = state.analysis;
+  const criticalPoints = currentCriticalPoints();
+  const transform = deriveFiberDisplayTransform(analysis, criticalPoints);
+  const tAxis = transform.tAxis;
+  const rootCenter = isAutomorphism() ? analysis.finiteChartRoots[0].root.re : 0;
   const segments = [];
   let active = [];
   let previous = null;
+  const samples = innerWidth < 700 ? 460 : 760;
+
   for (let index = 0; index <= samples; index += 1) {
-    const relativeT = -tRange + (2 * tRange * index) / samples;
-    const t = center.t + relativeT;
+    const displayT = -tAxis.sceneExtent + (2 * tAxis.sceneExtent * index) / samples;
+    const t = isAutomorphism() ? rootCenter + displayT / 1.25 : tAxis.inverse(displayT);
     const point = isAutomorphism()
-      ? { t, alpha: state.alpha + relativeT, slope: 1, x: center.x + relativeT }
-      : currentFrameCurvePoint(t);
-    const mapped = isAutomorphism()
-      ? new THREE.Vector3(relativeT * 1.3, relativeT * 1.3, relativeT * 1.3)
-      : mapFiberPoint(point);
-    const valid = Number.isFinite(point.alpha)
-      && Number.isFinite(point.x)
-      && Math.abs(point.slope) > 0.008
-      && mapped.length() < 16;
-    const jump = previous ? mapped.distanceTo(previous) : 0;
-    if (!valid || jump > 1.7) {
-      if (active.length >= 4) segments.push(active);
+      ? { t, alpha: t + automorphismOffset(state.d, state.beta, state.gamma, state.variant), slope: 1, x: t }
+      : frameCurvePoint(state.d, t, state.beta, state.gamma);
+    const world = fiberWorldPoint(point, tAxis, rootCenter);
+    const valid = Number.isFinite(point.alpha) && Number.isFinite(point.x)
+      && Number.isFinite(world.x) && Number.isFinite(world.y) && Number.isFinite(world.z)
+      && (isAutomorphism() || Math.abs(point.slope) > 1e-9);
+    const jump = previous ? Math.hypot(world.x - previous.x, world.y - previous.y, world.z - previous.z) : 0;
+    if (!valid || jump > 1.15) {
+      if (active.length >= 3) segments.push(active);
       active = [];
       previous = null;
       continue;
     }
-    active.push(mapped);
-    previous = mapped;
+    active.push(world);
+    previous = world;
   }
-  if (active.length >= 4) segments.push(active);
-  segments.forEach(addFiberSegment);
+  if (active.length >= 3) segments.push(active);
 
-  const criticalTargets = isAutomorphism() ? [] : realCriticalTargets(state.d, state.beta, state.gamma);
-  criticalTargets.slice(0, 10).forEach((critical, index) => {
-    const side = index % 2 === 0 ? 1 : -1;
-    const position = mapFiberPoint({ ...critical, x: side * 120 });
-    const geometry = new THREE.TorusGeometry(0.13, 0.018, 8, 28);
-    const material = new THREE.MeshBasicMaterial({
-      color: COLORS.magenta,
-      transparent: true,
-      opacity: 0.58,
-      blending: THREE.AdditiveBlending,
-    });
-    const marker = new THREE.Mesh(geometry, material);
-    marker.position.copy(position);
-    marker.rotation.x = Math.PI / 2;
-    structureGroup.add(marker);
-  });
-}
-
-function createRootMarker(root, position, rootIndex, certified = false) {
-  const selected = rootIndex === state.selectedRoot;
-  const color = isAutomorphism()
-    ? COLORS.green
-    : certified ? COLORS.gold : Math.abs(root.im) < 1e-7 ? COLORS.magenta : COLORS.cyan;
-  const geometry = new THREE.SphereGeometry(selected ? 0.135 : 0.105, 24, 18);
-  const material = new THREE.MeshStandardMaterial({
-    color,
-    emissive: color,
-    emissiveIntensity: selected ? 4.2 : 2.7,
-    metalness: 0.2,
-    roughness: 0.18,
-  });
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.copy(position);
-  mesh.userData.rootIndex = rootIndex;
-  mesh.userData.root = root;
-  mesh.userData.certified = certified;
-
-  const haloGeometry = new THREE.SphereGeometry(selected ? 0.29 : 0.22, 18, 12);
-  const haloMaterial = new THREE.MeshBasicMaterial({
-    color,
-    transparent: true,
-    opacity: selected ? 0.16 : 0.09,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-  });
-  const halo = new THREE.Mesh(haloGeometry, haloMaterial);
-  halo.position.copy(position);
-  halo.userData.rootIndex = rootIndex;
-  halo.userData.root = root;
-  overlayGroup.add(halo, mesh);
-  interactiveRoots.push(mesh, halo);
-  if (selected) selectedMeshes.push(mesh, halo);
-}
-
-function isCertifiedRoot(root) {
-  if (isAutomorphism()) return Math.abs(root.im) < 1e-7;
-  if (state.activePreset !== "collision" || Math.abs(root.im) > 1e-7) return false;
-  const certificate = collisionCertificate(state.d);
-  return certificate.finiteRootTs.some((value) => Math.abs(root.re - value) < 2e-5);
-}
-
-function addTargetPlane() {
-  const y = isAutomorphism() ? 0 : compress(state.alpha, 2.2) * 1.58;
-  const color = isAutomorphism() ? COLORS.green : COLORS.gold;
-  const geometry = new THREE.PlaneGeometry(12.5, 11.5, 1, 1);
-  const material = new THREE.MeshBasicMaterial({
-    color,
-    transparent: true,
-    opacity: 0.055,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-  });
-  const plane = new THREE.Mesh(geometry, material);
-  plane.rotation.x = -Math.PI / 2;
-  plane.position.y = y;
-  const edges = new THREE.LineSegments(
-    new THREE.EdgesGeometry(geometry),
-    new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.28 }),
-  );
-  edges.rotation.copy(plane.rotation);
-  edges.position.copy(plane.position);
-  overlayGroup.add(plane, edges);
-}
-
-function addOutputBeacon(rootPositions) {
-  if (!rootPositions.length) return;
-  const planeY = isAutomorphism() ? 0 : compress(state.alpha, 2.2) * 1.58;
-  const color = isAutomorphism() ? COLORS.green : COLORS.gold;
-  const beaconPosition = new THREE.Vector3(-3.6, planeY + 1.45, -2.4);
-  const orbGeometry = new THREE.IcosahedronGeometry(0.18, 2);
-  const orbMaterial = new THREE.MeshStandardMaterial({
-    color,
-    emissive: color,
-    emissiveIntensity: 3.6,
-    metalness: 0.3,
-    roughness: 0.18,
-  });
-  const orb = new THREE.Mesh(orbGeometry, orbMaterial);
-  orb.position.copy(beaconPosition);
-  overlayGroup.add(orb);
-
-  rootPositions.forEach((start, index) => {
-    const midpoint = start.clone().lerp(beaconPosition, 0.5);
-    midpoint.y += 0.6 + index * 0.11;
-    midpoint.z += index % 2 === 0 ? 0.35 : -0.35;
-    const curve = new THREE.QuadraticBezierCurve3(start, midpoint, beaconPosition);
-    const geometry = new THREE.TubeGeometry(curve, 42, 0.012, 5, false);
-    const material = new THREE.MeshBasicMaterial({
-      color,
-      transparent: true,
-      opacity: 0.34,
-      blending: THREE.AdditiveBlending,
-    });
-    overlayGroup.add(new THREE.Mesh(geometry, material));
-  });
-
-}
-
-function buildFiberOverlay() {
-  addTargetPlane();
-  const rootPositions = [];
-  state.solution.roots.forEach((root, index) => {
-    if (Math.abs(root.im) > 1e-6) return;
-    const source = currentSource(root);
-    const point = mapFiberPoint({ t: root.re, alpha: state.alpha, x: source.x.re });
-    createRootMarker(root, point, index, isCertifiedRoot(root));
-    rootPositions.push(point);
-  });
-  addOutputBeacon(rootPositions);
-}
-
-function landscapeHeight(root, centered = false) {
-  if (isAutomorphism()) {
-    const centerT = landscapeCenterT();
-    const delta = centered ? root : { re: root.re - centerT, im: root.im };
-    return Math.min(5.7, Math.log1p(cAbs(delta)) * 0.72);
+  const markers = [];
+  for (const entry of analysis.finiteChartRoots) {
+    if (Math.abs(entry.root.im) > 1e-7 || entry.kind !== "finite-chart") continue;
+    const point = fiberWorldPoint({ t: entry.root.re, alpha: state.alpha, x: entry.source.x.re }, tAxis, rootCenter);
+    markers.push({ entry, world: point, type: "finite", label: `T = ${formatComplex(entry.root)}` });
   }
-  const coefficients = currentPolynomialCoefficients();
-  return Math.min(5.7, Math.log1p(cAbs(evaluatePolynomial(coefficients, root))) * 0.72);
+  for (const entry of analysis.repeatedEntries) {
+    if (Math.abs(entry.root.im) > 1e-7) continue;
+    const x = isAutomorphism() ? 0 : tAxis.forward(entry.root.re);
+    markers.push({ entry, world: { x, y: 0, z: 5.2 }, type: "escape", label: `${entry.multiplicity} sheets → ∞` });
+    markers.push({ entry, world: { x, y: 0, z: -5.2 }, type: "escape-ghost", label: `${entry.multiplicity} sheets → ∞` });
+  }
+  for (const entry of analysis.boundaryEntries) {
+    markers.push({ entry, world: { x: -3.7, y: -2.4, z: 2.4 }, type: "boundary", label: "finite source on x = 0" });
+  }
+  for (const entry of analysis.infinityEntries) {
+    markers.push({ entry, world: { x: 3.7, y: 2.8, z: -2.4 }, type: "escape", label: `${entry.multiplicity} sheets outside affine fiber` });
+  }
+
+  return {
+    kind: "fiber",
+    segments,
+    markers,
+    transform,
+    criticalPoints,
+    targetPlane: true,
+    rootCenter,
+  };
 }
 
-function buildLandscapeStructure() {
-  const span = 3.35;
-  const resolution = window.innerWidth < 700 ? 62 : 84;
-  const positions = [];
-  const colors = [];
-  const indices = [];
-  const color = new THREE.Color();
+function buildLandscapeScene() {
+  const analysis = state.analysis;
+  const transform = deriveLandscapeDisplayTransform(analysis);
+  const span = 4.8;
+  const resolution = innerWidth < 700 ? 30 : 42;
+  const coefficients = analysis.coefficients; // deliberately computed once per mesh
+  const samples = [];
+  const rawValues = [];
   for (let row = 0; row <= resolution; row += 1) {
-    const im = -span + (2 * span * row) / resolution;
+    const z = -span + (2 * span * row) / resolution;
+    const line = [];
     for (let column = 0; column <= resolution; column += 1) {
-      const displayRe = -span + (2 * span * column) / resolution;
-      const height = landscapeHeight({ re: displayRe, im }, true);
-      positions.push(displayRe * 1.52, height - 1.8, im * 1.52);
-      const normalized = height / 5.7;
-      color.setHSL(
-        isAutomorphism() ? 0.43 + normalized * 0.12 : 0.52 + normalized * 0.28,
-        0.82,
-        0.48 + normalized * 0.12,
-      );
-      colors.push(color.r, color.g, color.b);
+      const x = -span + (2 * span * column) / resolution;
+      const t = transform.inverse(x, z);
+      const value = cAbs(evaluatePolynomial(coefficients, t));
+      rawValues.push(value);
+      line.push({ x, z, t, value, y: 0 });
     }
+    samples.push(line);
   }
-  for (let row = 0; row < resolution; row += 1) {
-    for (let column = 0; column < resolution; column += 1) {
-      const a = row * (resolution + 1) + column;
-      const b = a + 1;
-      const c = a + resolution + 1;
-      const d = c + 1;
-      indices.push(a, c, b, b, c, d);
-    }
+  const finiteValues = rawValues.filter(Number.isFinite);
+  const valueScale = Math.max(1e-12, quantile(finiteValues, 0.58) || polynomialEvaluationScale(coefficients, complex(0, 0)) || 1);
+  for (const row of samples) {
+    for (const point of row) point.y = clamp(Math.log1p(point.value / valueScale) * 2.35 - 2.45, -2.45, 5.4);
   }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-  geometry.setIndex(indices);
-  geometry.computeVertexNormals();
-  const material = new THREE.MeshStandardMaterial({
-    vertexColors: true,
-    transparent: true,
-    opacity: 0.76,
-    roughness: 0.38,
-    metalness: 0.18,
-    side: THREE.DoubleSide,
-  });
-  structureGroup.add(new THREE.Mesh(geometry, material));
 
-  const wireframe = new THREE.LineSegments(
-    new THREE.WireframeGeometry(geometry),
-    new THREE.LineBasicMaterial({ color: COLORS.ink, transparent: true, opacity: 0.045 }),
-  );
-  structureGroup.add(wireframe);
-
-  const grid = new THREE.GridHelper(10.2, 12, 0x2d405d, 0x19243b);
-  grid.position.y = -1.82;
-  grid.material.transparent = true;
-  grid.material.opacity = 0.28;
-  structureGroup.add(grid);
-
-  const realLabel = createTextSprite(isAutomorphism() ? "Re(T − unique root)" : "Re(T)", isAutomorphism() ? "#63f2b5" : "#57e6ff");
-  realLabel.position.set(5.9, -1.75, 0);
-  const imaginaryLabel = createTextSprite("Im(T)", "#ff5edb");
-  imaginaryLabel.position.set(0, -1.75, 5.9);
-  const magnitudeLabel = createTextSprite("log(1 + |P|)", "#ae7dff");
-  magnitudeLabel.position.set(0, 4.5, 0);
-  structureGroup.add(realLabel, imaginaryLabel, magnitudeLabel);
-}
-
-function buildLandscapeOverlay() {
-  const centerT = landscapeCenterT();
-  state.solution.roots.forEach((root, index) => {
-    const height = landscapeHeight(root);
-    const position = new THREE.Vector3((root.re - centerT) * 1.52, height - 1.72, root.im * 1.52);
-    createRootMarker(root, position, index, isCertifiedRoot(root));
-    const beaconGeometry = new THREE.CylinderGeometry(0.008, 0.008, 1.1, 6);
-    const beaconMaterial = new THREE.MeshBasicMaterial({
-      color: isAutomorphism() ? COLORS.green : isCertifiedRoot(root) ? COLORS.gold : COLORS.cyan,
-      transparent: true,
-      opacity: 0.18,
-      blending: THREE.AdditiveBlending,
+  const markers = [];
+  for (const entry of analysis.allPolynomialRoots) {
+    if (!entry.displayRoot || !isFiniteComplex(entry.displayRoot)) continue;
+    const p = transform.forward(entry.displayRoot);
+    markers.push({
+      entry,
+      world: { x: p.x, y: -2.36, z: p.z },
+      type: entry.kind === "escape-repeated-root" ? "escape" : "finite",
+      label: `${entry.kind === "escape-repeated-root" ? "repeated root" : "root"} T = ${formatComplex(entry.displayRoot)}`,
     });
-    const beacon = new THREE.Mesh(beaconGeometry, beaconMaterial);
-    beacon.position.set(position.x, position.y + 0.55, position.z);
-    overlayGroup.add(beacon);
-  });
-}
-
-function structureKey() {
-  const base = `${state.family}|${state.variant}|${state.mode}|${state.d}|${state.beta.toFixed(6)}|${state.gamma.toFixed(6)}`;
-  return state.mode === "landscape" ? `${base}|${state.alpha.toFixed(6)}` : base;
-}
-
-function rebuildScene() {
-  if (!renderer) return;
-  const key = structureKey();
-  if (key !== state.lastStructureKey) {
-    clearGroup(structureGroup);
-    if (state.mode === "fiber") buildFiberStructure();
-    else buildLandscapeStructure();
-    state.lastStructureKey = key;
   }
-
-  clearGroup(overlayGroup);
-  interactiveRoots = [];
-  selectedMeshes = [];
-  if (state.mode === "fiber") buildFiberOverlay();
-  else buildLandscapeOverlay();
+  for (const entry of analysis.boundaryEntries) {
+    markers.push({ entry, world: { x: -3.65, y: 2.8, z: 2.35 }, type: "boundary", label: "finite x = 0 source (outside T-chart)" });
+  }
+  for (const entry of analysis.infinityEntries) {
+    markers.push({ entry, world: { x: 3.65, y: 2.8, z: -2.35 }, type: "escape", label: `${entry.multiplicity} asymptotic sheets` });
+  }
+  return { kind: "landscape", samples, markers, transform, valueScale, span, resolution };
 }
 
-function solveCurrentFiber() {
-  const coefficients = currentPolynomialCoefficients();
-  state.solution = solvePolynomial(coefficients);
-  if (state.selectedRoot >= state.solution.roots.length) state.selectedRoot = 0;
-}
-
-function targetsMatch(a, b, tolerance = 1e-9) {
-  return Math.abs(a.alpha - b.alpha) < tolerance
-    && Math.abs(a.beta - b.beta) < tolerance
-    && Math.abs(a.gamma - b.gamma) < tolerance;
-}
-
-function formatResidual(value) {
-  if (!Number.isFinite(value)) return "not finite";
-  if (value < 1e-12) return "< 1e−12";
-  return value.toExponential(2).replace("e-", "e−");
-}
-
-function escapingSheetCount() {
-  return !isAutomorphism() && state.activePreset === "escape" && Number.isFinite(state.escapeT) ? 2 : 0;
-}
-
-function rootIsAtEscapeWall(root) {
-  return escapingSheetCount() > 0
-    && Math.hypot(root.re - state.escapeT, root.im) < 2e-4;
+function rebuildSceneData() {
+  state.sceneData = state.mode === "fiber" ? buildFiberScene() : buildLandscapeScene();
+  frameRequested = true;
 }
 
 function updateFamilyChrome() {
-  const automorphism = isAutomorphism();
+  const auto = isAutomorphism();
   document.body.dataset.family = state.family;
   for (const button of elements.familyButtons) {
-    const selected = button.dataset.family === state.family;
-    button.classList.toggle("is-active", selected);
-    button.setAttribute("aria-pressed", String(selected));
+    const active = button.dataset.family === state.family;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", String(active));
   }
-
-  elements.classificationBadge.classList.toggle("is-automorphism", automorphism);
-  elements.classificationSymbol.textContent = automorphism ? "✓" : "≠";
-  elements.classificationTitle.textContent = automorphism ? "Injective Keller map" : "Non-injective Keller map";
-  elements.classificationDetail.textContent = automorphism
-    ? "conjecture-compatible · explicit polynomial inverse"
-    : "counterexample · certified shared output";
-  elements.brandSubtitle.textContent = automorphism ? "automorphism chamber" : "counterexample chamber";
-  elements.degreeLabel.textContent = automorphism ? "Shear exponent" : "Generic fiber degree";
-  elements.degree.min = automorphism ? "2" : "3";
-  elements.degreeMin.textContent = automorphism ? "2" : "3";
-  elements.degreeMax.textContent = "12";
+  elements.classificationSymbol.textContent = auto ? "✓" : "≠";
+  elements.classificationTitle.textContent = auto ? "Polynomial automorphism" : "Non-injective Keller map";
+  elements.classificationDetail.textContent = auto
+    ? "constant Jacobian · explicit polynomial inverse"
+    : "constant Jacobian · certified global overlap";
+  elements.deckEyebrow.textContent = auto ? "Exact inverse" : "Live target";
+  elements.deckTitle.textContent = auto ? "Trace the unique source" : "Shape the fiber";
+  elements.degreeLabel.textContent = auto ? "Shear exponent" : "Generic fiber degree";
+  elements.degree.min = auto ? "2" : "3";
+  elements.degreeMin.textContent = auto ? "2" : "3";
   elements.degreeMetricLabel.textContent = "generic degree";
-  elements.jacobianMetric.textContent = automorphism ? "1" : "−2";
-  elements.deckEyebrow.textContent = automorphism ? "Exact inverse" : "Live target";
-  elements.deckTitle.textContent = automorphism ? "Trace one preimage" : "Shape the fiber";
-
-  if (automorphism) {
-    elements.presetOneTitle.textContent = "Identity";
-    elements.presetOneDetail.textContent = "the untouched baseline";
-    elements.presetTwoTitle.textContent = "Single shear";
-    elements.presetTwoDetail.textContent = "x bends by yᵏ";
-    elements.presetThreeTitle.textContent = "Chained shears";
-    elements.presetThreeDetail.textContent = "nonlinear, still invertible";
-    elements.equationExpression.innerHTML = state.variant === "identity"
-      ? "P(T) = T − α"
-      : state.variant === "shear"
-        ? `P(T) = T + β<sup>${state.d}</sup> − α`
-        : `P(T) = T + (β − γ<sup>${state.d}</sup>)<sup>${state.d}</sup> − α`;
-    elements.howToText.innerHTML =
-      "These are polynomial automorphisms: identity, one triangular shear, and two chained shears. "
-      + "The centered sculpture shows the exact inverse channel; every target plane cuts it once. "
-      + "The thin arc is a relation diagram linking that unique source to its output. In landscape mode, the lone well is the only complex preimage.";
+  elements.jacobianMetric.textContent = auto ? "1" : "−2";
+  if (auto) {
+    elements.presetOne.querySelector("strong").textContent = "Identity";
+    elements.presetOne.querySelector("small").textContent = "untouched baseline";
+    elements.presetTwo.querySelector("strong").textContent = "Single shear";
+    elements.presetTwo.querySelector("small").textContent = "x bends by yᵏ";
+    elements.presetThree.querySelector("strong").textContent = "Chained shears";
+    elements.presetThree.querySelector("small").textContent = "nonlinear, invertible";
+    elements.equationExpression.innerHTML = state.variant === "identity" ? "P(T) = T − α"
+      : state.variant === "shear" ? `P(T) = T + β<sup>${state.d}</sup> − α`
+      : `P(T) = T + (β − γ<sup>${state.d}</sup>)<sup>${state.d}</sup> − α`;
+    elements.howToText.textContent = "These triangular maps have determinant 1 and an explicit polynomial inverse. Their fiber polynomial is linear, so every target has exactly one affine source. The scene is recentered for readability; the inspector always shows the actual coordinates.";
     elements.footerLead.textContent = "One target. One source. An explicit route back.";
-    elements.footerDetail.textContent = "Exact polynomial inverse · det 1 · numerical rendering";
+    elements.footerDetail.textContent = "Exact inverse · determinant 1 · adaptive numerical rendering";
   } else {
-    elements.presetOneTitle.textContent = "Exact collision";
-    elements.presetOneDetail.textContent = "two certified inputs";
-    elements.presetTwoTitle.textContent = "Nearby fiber";
-    elements.presetTwoDetail.textContent = "move off the certificate";
-    elements.presetThreeTitle.textContent = "Escape wall";
-    elements.presetThreeDetail.textContent = "a sheet runs to infinity";
+    elements.presetOne.querySelector("strong").textContent = "Exact collision";
+    elements.presetOne.querySelector("small").textContent = "stored certificate";
+    elements.presetTwo.querySelector("strong").textContent = "Nearby fiber";
+    elements.presetTwo.querySelector("small").textContent = "move off certificate";
+    elements.presetThree.querySelector("strong").textContent = "Escape wall";
+    elements.presetThree.querySelector("small").textContent = "P and P′ share a root";
     elements.equationExpression.innerHTML = "P(T) = h<sub>d</sub>(T, γ) + βT − 2α";
-    elements.howToText.innerHTML =
-      "The sculpture plots every real parameter <i>T</i> against target α and reconstructed source "
-      + "<i>x = 2/P′(T)</i>. The target plane can cut several sheets, so distinct inputs share one output. "
-      + "Thin arcs are a relation diagram, not extra coordinate curves. In landscape mode, all complex roots appear as wells of |P(T)|.";
-    elements.footerLead.textContent = "Several sources. One target. The global inverse breaks.";
-    elements.footerDetail.textContent = "Exact collision certificates · det −2 · numerical root rendering";
+    elements.howToText.textContent = "Simple roots reconstruct finite sources on x ≠ 0. Finite x = 0 sources are counted in a second affine chart. Repeated roots satisfy P′ = 0, so x = 2/P′ cannot be finite and those sheets escape through infinity. All display compression is disclosed above the scene.";
+    elements.footerLead.textContent = "Nothing folds locally. The overlap is global.";
+    elements.footerDetail.textContent = "Exact family formulas · explicit chart accounting · numerical root rendering";
   }
 }
 
-function updateOutputs() {
-  updateFamilyChrome();
+function syncControls() {
   elements.degree.value = String(state.d);
   elements.degreeOutput.value = `${isAutomorphism() ? "k" : "d"} = ${state.d}`;
-  elements.alpha.value = String(state.alpha);
-  elements.beta.value = String(state.beta);
-  elements.gamma.value = String(state.gamma);
-  elements.alphaOutput.value = formatNumber(state.alpha);
-  elements.betaOutput.value = formatNumber(state.beta);
-  elements.gammaOutput.value = formatNumber(state.gamma);
-  elements.degreeMetric.textContent = isAutomorphism() ? "1" : String(state.d);
+  for (const [key, range, number] of [
+    ["alpha", elements.alpha, elements.alphaNumber], ["beta", elements.beta, elements.betaNumber], ["gamma", elements.gamma, elements.gammaNumber],
+  ]) {
+    const value = state[key];
+    const min = Number(range.min), max = Number(range.max);
+    if (value >= min && value <= max) range.value = String(value);
+    number.value = String(Number(value.toPrecision(12)));
+  }
+}
 
-  const genericDegree = isAutomorphism() ? 1 : state.d;
-  const degreeLossAtInfinity = Math.max(0, genericDegree - state.solution.degree);
-  const escaping = escapingSheetCount();
-  const rootsAtInfinity = degreeLossAtInfinity + escaping;
-  const finitePreimages = Math.max(0, state.solution.degree - escaping);
-  elements.rootCountMetric.textContent = rootsAtInfinity
-    ? `${finitePreimages} + ${rootsAtInfinity}∞`
-    : String(finitePreimages);
-  elements.residualMetric.textContent = formatResidual(state.solution.residual);
-  elements.solverStatus.textContent = isAutomorphism()
-    ? "linear · one root"
-    : escaping
-    ? "repeated root · P′(T) = 0"
-    : state.solution.converged ? "converged" : "near a multiple root";
-  elements.solverStatus.style.color = !isAutomorphism() && (escaping || !state.solution.converged) ? "var(--gold)" : "";
+function updatePresetChrome() {
+  for (const button of [elements.presetOne, elements.presetTwo, elements.presetThree]) button.classList.remove("is-active");
+  if (["collision", "identity"].includes(state.activePreset)) elements.presetOne.classList.add("is-active");
+  if (["nearby", "shear"].includes(state.activePreset)) elements.presetTwo.classList.add("is-active");
+  if (["escape", "chain"].includes(state.activePreset)) elements.presetThree.classList.add("is-active");
+}
+
+function updateAnalysisUI() {
+  const a = state.analysis;
+  elements.degreeMetric.textContent = String(a.genericDegree);
+  elements.finiteMetric.textContent = String(a.finiteAffineCount);
+  elements.escapeMetric.textContent = String(a.escapeCount);
+  elements.residualMetric.textContent = formatResidual(a.maximumRelativeResidual);
+  elements.countChart.textContent = String(a.finiteChartCount);
+  elements.countBoundary.textContent = String(a.boundaryCount);
+  elements.countEscape.textContent = String(a.escapeCount);
+  elements.countUnresolved.textContent = String(a.unresolvedCount);
+  elements.accountingTotal.textContent = `${a.finiteAffineCount + a.escapeCount + a.unresolvedCount} / ${a.genericDegree} sheets`;
+  elements.solverStatus.textContent = a.repeatedEscapeCount
+    ? "P and P′ share a root"
+    : a.unresolvedCount ? "numerical caution" : a.solution.converged ? "converged" : "refining";
+  elements.solverStatus.style.color = a.repeatedEscapeCount || a.unresolvedCount ? "var(--gold)" : "";
   elements.equationDetail.textContent = isAutomorphism()
-    ? "generic degree 1 · exactly one finite complex preimage"
-    : rootsAtInfinity
-    ? `degree ${state.d} generically · ${finitePreimages} finite preimages · ${rootsAtInfinity} sheets at infinity`
-    : `degree ${state.d} · ${state.solution.roots.length} finite complex roots`;
+    ? "linear fiber · exactly one finite complex preimage"
+    : `generic degree ${a.genericDegree} · degree ${a.chartDegree} in this T-chart · ${a.boundaryCount} finite boundary-chart source${a.boundaryCount === 1 ? "" : "s"}`;
+  elements.axisTransform.textContent = state.sceneData.transform.label;
+  elements.legendCurve.textContent = state.mode === "landscape" ? "log residual surface" : isAutomorphism() ? "unique inverse channel" : "real fiber curve";
+  elements.legendFinite.textContent = state.mode === "landscape" ? "polynomial root" : "finite affine preimage";
+}
 
-  elements.truthStrip.classList.toggle("is-automorphism", isAutomorphism());
+function currentSheet() {
+  const sheets = state.analysis?.sheets ?? [];
+  if (!sheets.length) return null;
+  state.selectedSheet = ((state.selectedSheet % sheets.length) + sheets.length) % sheets.length;
+  return sheets[state.selectedSheet];
+}
+
+function updateInspector() {
+  const sheets = state.analysis.sheets;
+  const entry = currentSheet();
+  if (!entry) {
+    elements.sheetIndex.textContent = "no sheet data";
+    for (const el of [elements.rootT, elements.rootMultiplicity, elements.rootX, elements.rootY, elements.rootZ, elements.rootChart]) el.textContent = "—";
+    return;
+  }
+  elements.sheetIndex.textContent = `group ${state.selectedSheet + 1} / ${sheets.length}`;
+  elements.rootMultiplicity.textContent = String(entry.multiplicity ?? 1);
+  if (entry.kind === "finite-chart") {
+    elements.sheetStatus.textContent = entry.nearEscape ? "finite, but far along an asymptotic branch" : "finite affine preimage";
+    elements.rootT.textContent = formatComplex(entry.root);
+    elements.rootX.textContent = formatComplex(entry.source.x);
+    elements.rootY.textContent = formatComplex(entry.source.y);
+    elements.rootZ.textContent = formatComplex(entry.source.z);
+    elements.rootChart.textContent = "x ≠ 0";
+  } else if (entry.kind === "finite-boundary-chart") {
+    const [x, y, z] = entry.source.source;
+    elements.sheetStatus.textContent = "finite affine preimage in the boundary chart";
+    elements.rootT.textContent = "outside T-chart";
+    elements.rootX.textContent = formatNumber(x);
+    elements.rootY.textContent = formatNumber(y);
+    elements.rootZ.textContent = formatNumber(z);
+    elements.rootChart.textContent = "x = 0";
+  } else if (entry.kind === "escape-repeated-root") {
+    elements.sheetStatus.textContent = "escaping sheets: P(T) = P′(T) = 0";
+    elements.rootT.textContent = formatComplex(entry.root);
+    elements.rootX.textContent = "diverges";
+    elements.rootY.textContent = "no finite source";
+    elements.rootZ.textContent = "no finite source";
+    elements.rootChart.textContent = "at infinity";
+  } else if (entry.kind === "escape-chart-infinity") {
+    elements.sheetStatus.textContent = "generic sheets absent from this affine fiber";
+    elements.rootT.textContent = "∞ in T-chart";
+    elements.rootX.textContent = "nonproper branch";
+    elements.rootY.textContent = "—";
+    elements.rootZ.textContent = "—";
+    elements.rootChart.textContent = "at infinity";
+  } else {
+    elements.sheetStatus.textContent = "numerically unresolved";
+    elements.rootT.textContent = entry.root ? formatComplex(entry.root) : "—";
+    elements.rootX.textContent = "undefined";
+    elements.rootY.textContent = "undefined";
+    elements.rootZ.textContent = "undefined";
+    elements.rootChart.textContent = "unresolved";
+  }
+}
+
+function updateTruthStrip() {
   if (isAutomorphism()) {
     const names = { identity: "identity", shear: "single triangular shear", chain: "chained triangular shears" };
     elements.truthStrip.classList.remove("is-numeric");
     elements.truthIcon.textContent = "✓";
     elements.truthTitle.textContent = "Explicit inverse certificate";
-    elements.truthDetail.textContent = `${names[state.variant]} · every target has one preimage`;
-  } else {
+    elements.truthDetail.textContent = `${names[state.variant]} · determinant 1 · exactly one source`;
+    return;
+  }
   const certificate = collisionCertificate(state.d);
   const onCertificate = targetsMatch(state, certificate.target);
   elements.truthStrip.classList.toggle("is-numeric", !onCertificate);
   if (onCertificate) {
     const verification = verifyCollisionNumerically(state.d);
-    elements.truthIcon.textContent = verification.ok ? "✓" : "!";
-    elements.truthTitle.textContent = verification.ok ? "Certificate verified" : "Certificate mismatch";
-    const target = certificate.target;
-    elements.truthDetail.textContent = `distinct inputs → (${formatNumber(target.alpha)}, ${formatNumber(target.beta)}, ${formatNumber(target.gamma)})`;
+    elements.truthIcon.textContent = verification.numericalEvaluationPassed ? "✓" : "!";
+    elements.truthTitle.textContent = "Stored exact certificate";
+    elements.truthDetail.textContent = verification.numericalEvaluationPassed
+      ? `browser numerical re-evaluation passed · max error ${formatResidual(verification.maximumError)}`
+      : `browser numerical re-evaluation mismatch · max error ${formatResidual(verification.maximumError)}`;
+  } else if (state.analysis.repeatedEscapeCount) {
+    elements.truthIcon.textContent = "↗";
+    elements.truthTitle.textContent = "Escape inferred from P and P′";
+    elements.truthDetail.textContent = `${state.analysis.repeatedEscapeCount} sheets have no finite affine source`;
   } else {
     elements.truthIcon.textContent = "≈";
-    elements.truthTitle.textContent = "Numerical fiber solved";
-    elements.truthDetail.textContent = escaping
-      ? `two sheets escape · root residual ${formatResidual(state.solution.residual)}`
-      : `${state.solution.roots.length} roots · residual ${formatResidual(state.solution.residual)}`;
-  }
-  }
-
-  for (const button of [elements.collisionPreset, elements.driftPreset, elements.escapePreset]) {
-    button.classList.remove("is-active");
-  }
-  if (["collision", "identity"].includes(state.activePreset)) elements.collisionPreset.classList.add("is-active");
-  if (["drift", "shear"].includes(state.activePreset)) elements.driftPreset.classList.add("is-active");
-  if (["escape", "chain"].includes(state.activePreset)) elements.escapePreset.classList.add("is-active");
-}
-
-function updateInspector() {
-  const roots = state.solution?.roots ?? [];
-  if (!roots.length) {
-    elements.rootIndex.textContent = "no finite roots";
-    for (const element of [elements.rootT, elements.rootX, elements.rootY, elements.rootZ]) element.textContent = "—";
-    return;
-  }
-  const index = ((state.selectedRoot % roots.length) + roots.length) % roots.length;
-  state.selectedRoot = index;
-  const root = roots[index];
-  const source = currentSource(root);
-  elements.rootIndex.textContent = `root ${index + 1} / ${roots.length}`;
-  if (rootIsAtEscapeWall(root)) {
-    elements.rootT.textContent = formatNumber(state.escapeT);
-    elements.rootX.textContent = "∞  (P′ = 0)";
-    elements.rootY.textContent = "sheet at infinity";
-    elements.rootZ.textContent = "outside affine chart";
-  } else {
-    elements.rootT.textContent = formatComplex(root);
-    elements.rootX.textContent = formatComplex(source.x);
-    elements.rootY.textContent = formatComplex(source.y);
-    elements.rootZ.textContent = formatComplex(source.z);
+    elements.truthTitle.textContent = "Numerical fiber analysis";
+    elements.truthDetail.textContent = `${state.analysis.finiteAffineCount} finite · ${state.analysis.escapeCount} escaping · residual ${formatResidual(state.analysis.maximumRelativeResidual)}`;
   }
 }
 
-function updateLegends() {
-  const landscape = state.mode === "landscape";
-  elements.legendPrimary.textContent = landscape
-    ? "|P(T)| landscape"
-    : isAutomorphism() ? "unbroken inverse channel" : "real fiber curve";
-  elements.legendSecondary.textContent = landscape
-    ? isAutomorphism() ? "the unique complex root" : "complex root / preimage"
-    : isAutomorphism() ? "unique real preimage" : "real finite preimage";
-  elements.legendProof.textContent = isAutomorphism() ? "explicit inverse" : "certified collision";
-  elements.legendProofDot.classList.toggle("is-automorphism", isAutomorphism());
-}
-
-function updateAll({ resetStructure = false } = {}) {
-  if (resetStructure) state.lastStructureKey = "";
-  solveCurrentFiber();
-  updateOutputs();
+function updateAll({ resetSelection = false } = {}) {
+  if (resetSelection) state.selectedSheet = 0;
+  updateFamilyChrome();
+  analyzeCurrentFiber();
+  rebuildSceneData();
+  syncControls();
+  updatePresetChrome();
+  updateAnalysisUI();
   updateInspector();
-  updateLegends();
-  rebuildScene();
+  updateTruthStrip();
+  elements.renderStatus.classList.add("is-ready");
+  elements.canvas.dataset.renderReady = "true";
+  document.documentElement.dataset.renderReady = "true";
 }
 
-function applyTarget(target, preset, { escapeT = null } = {}) {
-  state.alpha = target.alpha;
-  state.beta = target.beta;
-  state.gamma = target.gamma;
-  state.activePreset = preset;
-  state.escapeT = escapeT;
-  state.animateTarget = false;
-  state.animationCenter = state.alpha;
-  state.selectedRoot = 0;
-  elements.animateTarget.setAttribute("aria-pressed", "false");
-  updateAll({ resetStructure: true });
+function resizeCanvas() {
+  const rect = elements.canvas.getBoundingClientRect();
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  viewport = { width: Math.max(1, rect.width), height: Math.max(1, rect.height), dpr };
+  elements.canvas.width = Math.round(viewport.width * dpr);
+  elements.canvas.height = Math.round(viewport.height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  frameRequested = true;
+}
+
+function createStars() {
+  let seed = 20260720;
+  const random = () => { seed = (1664525 * seed + 1013904223) >>> 0; return seed / 4294967296; };
+  stars = Array.from({ length: 360 }, () => ({
+    x: random() * 2 - 1, y: random() * 2 - 1, z: random(), size: .3 + random() * 1.2, phase: random() * Math.PI * 2,
+  }));
+}
+
+function rotatePoint(point) {
+  const cy = Math.cos(camera.yaw), sy = Math.sin(camera.yaw);
+  const cp = Math.cos(camera.pitch), sp = Math.sin(camera.pitch);
+  const x1 = cy * point.x + sy * point.z;
+  const z1 = -sy * point.x + cy * point.z;
+  const y2 = cp * point.y - sp * z1;
+  const z2 = sp * point.y + cp * z1;
+  return { x: x1, y: y2, z: z2 };
+}
+
+function project(point) {
+  const rotated = rotatePoint(point);
+  const distance = 14;
+  const perspective = distance / Math.max(4, distance - rotated.z);
+  const scale = (Math.min(viewport.width, viewport.height) / 12.2) * camera.zoom * perspective;
+  return {
+    x: viewport.width / 2 + camera.panX + rotated.x * scale,
+    y: viewport.height / 2 + camera.panY - rotated.y * scale,
+    depth: rotated.z,
+    scale: perspective * camera.zoom,
+  };
+}
+
+function drawBackground(time) {
+  const gradient = ctx.createRadialGradient(viewport.width * .5, viewport.height * .45, 10, viewport.width * .5, viewport.height * .45, Math.max(viewport.width, viewport.height) * .72);
+  gradient.addColorStop(0, isAutomorphism() ? "#0b1d23" : "#16122d");
+  gradient.addColorStop(.55, "#070b1a");
+  gradient.addColorStop(1, "#02040b");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, viewport.width, viewport.height);
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (const star of stars) {
+    const x = ((star.x * .5 + .5) * viewport.width + camera.yaw * 10 * star.z) % viewport.width;
+    const y = (star.y * .5 + .5) * viewport.height + camera.pitch * 7 * star.z;
+    const alpha = .16 + .3 * (.5 + .5 * Math.sin(time * .0007 + star.phase));
+    ctx.fillStyle = `rgba(143,190,255,${alpha})`;
+    ctx.beginPath();
+    ctx.arc(x < 0 ? x + viewport.width : x, y, star.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawWorldLine(a, b, color, width = 1, alpha = 1) {
+  const pa = project(a), pb = project(b);
+  ctx.save(); ctx.strokeStyle = color; ctx.globalAlpha = alpha; ctx.lineWidth = width; ctx.beginPath(); ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y); ctx.stroke(); ctx.restore();
+}
+
+function drawGridAndAxes() {
+  const familyColor = isAutomorphism() ? COLORS.green : COLORS.magenta;
+  for (let i = -5; i <= 5; i += 1) {
+    drawWorldLine({ x: -5.5, y: 0, z: i }, { x: 5.5, y: 0, z: i }, "#33415f", .55, .22);
+    drawWorldLine({ x: i, y: 0, z: -5.5 }, { x: i, y: 0, z: 5.5 }, "#33415f", .55, .22);
+  }
+  drawWorldLine({ x: -5.7, y: 0, z: 0 }, { x: 5.7, y: 0, z: 0 }, COLORS.cyan, 1.1, .55);
+  drawWorldLine({ x: 0, y: -5.3, z: 0 }, { x: 0, y: 5.3, z: 0 }, COLORS.violet, 1.1, .5);
+  drawWorldLine({ x: 0, y: 0, z: -5.7 }, { x: 0, y: 0, z: 5.7 }, familyColor, 1.1, .5);
+}
+
+function drawTargetPlane() {
+  const corners = [{x:-5.5,y:0,z:-5.5},{x:5.5,y:0,z:-5.5},{x:5.5,y:0,z:5.5},{x:-5.5,y:0,z:5.5}].map(project);
+  ctx.save();
+  ctx.fillStyle = isAutomorphism() ? "rgba(98,239,180,.035)" : "rgba(255,211,106,.035)";
+  ctx.strokeStyle = isAutomorphism() ? "rgba(98,239,180,.22)" : "rgba(255,211,106,.22)";
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(corners[0].x,corners[0].y); for(let i=1;i<corners.length;i++)ctx.lineTo(corners[i].x,corners[i].y); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+}
+
+function strokeProjectedPath(points, color, width, alpha, glow = 0) {
+  if (points.length < 2) return;
+  const projected = points.map(project);
+  ctx.save(); ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineJoin = "round"; ctx.lineCap = "round";
+  if (glow) { ctx.shadowColor = color; ctx.shadowBlur = glow; }
+  ctx.beginPath(); ctx.moveTo(projected[0].x, projected[0].y); for (let i = 1; i < projected.length; i += 1) ctx.lineTo(projected[i].x, projected[i].y); ctx.stroke(); ctx.restore();
+}
+
+function drawFiber(time) {
+  drawTargetPlane();
+  drawGridAndAxes();
+  state.sceneData.segments.forEach((segment, index) => {
+    const color = isAutomorphism() ? (index % 2 ? COLORS.cyan : COLORS.green) : (index % 2 ? COLORS.violet : COLORS.cyan);
+    strokeProjectedPath(segment, color, 9, .055, 20);
+    strokeProjectedPath(segment, color, 2.15, .9, 9);
+    strokeProjectedPath(segment, "#eefcff", .55, .75, 2);
+  });
+  const pulse = 1 + .12 * Math.sin(time * .0024);
+  drawMarkers(pulse, true);
+}
+
+function surfaceColor(height, alpha = 1) {
+  const normalized = clamp((height + 2.45) / 7.85, 0, 1);
+  const hue = isAutomorphism() ? 154 + normalized * 35 : 188 + normalized * 95;
+  return `hsla(${hue},82%,${45 + normalized * 17}%,${alpha})`;
+}
+
+function drawLandscape(time) {
+  drawGridAndAxes();
+  const rows = state.sceneData.samples;
+  const cells = [];
+  for (let r = 0; r < rows.length - 1; r += 1) {
+    for (let c = 0; c < rows[r].length - 1; c += 1) {
+      const world = [rows[r][c], rows[r][c+1], rows[r+1][c+1], rows[r+1][c]].map(p => ({x:p.x,y:p.y,z:p.z}));
+      const projected = world.map(project);
+      cells.push({ projected, depth: projected.reduce((s,p)=>s+p.depth,0)/4, height: world.reduce((s,p)=>s+p.y,0)/4 });
+    }
+  }
+  cells.sort((a,b)=>a.depth-b.depth);
+  ctx.save();
+  for (const cell of cells) {
+    ctx.fillStyle = surfaceColor(cell.height, .12);
+    ctx.beginPath(); ctx.moveTo(cell.projected[0].x,cell.projected[0].y); for(let i=1;i<4;i++)ctx.lineTo(cell.projected[i].x,cell.projected[i].y); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+  for (const row of rows) strokeProjectedPath(row.map(p=>({x:p.x,y:p.y,z:p.z})), "#86cbff", .58, .18);
+  for (let c = 0; c < rows[0].length; c += 1) strokeProjectedPath(rows.map(row=>({x:row[c].x,y:row[c].y,z:row[c].z})), "#d58cff", .55, .14);
+  const pulse = 1 + .1 * Math.sin(time * .0024);
+  drawMarkers(pulse, false);
+}
+
+function markerColor(type) {
+  if (type === "boundary") return COLORS.gold;
+  if (type.startsWith("escape")) return COLORS.orange;
+  return isAutomorphism() ? COLORS.green : COLORS.magenta;
+}
+
+function drawLabel(text, x, y, color) {
+  ctx.save();
+  ctx.font = "600 10px Inter, system-ui, sans-serif";
+  const width = Math.min(viewport.width - 16, ctx.measureText(text).width + 14);
+  const centerX = clamp(x, width / 2 + 8, viewport.width - width / 2 - 8);
+  const centerY = clamp(y - 18.5, 16, viewport.height - 16);
+  ctx.fillStyle = "rgba(5,7,18,.84)"; ctx.strokeStyle = color; ctx.globalAlpha = .9; ctx.lineWidth = .7;
+  ctx.beginPath(); ctx.roundRect(centerX - width/2, centerY - 9.5, width, 19, 6); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = color; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(text, centerX, centerY); ctx.restore();
+}
+
+function drawRelationArcs(finitePositions) {
+  if (!finitePositions.length) return;
+  const center = finitePositions.reduce((sum,p)=>({x:sum.x+p.x,y:sum.y+p.y}),{x:0,y:0}); center.x/=finitePositions.length;center.y/=finitePositions.length;
+  const beacon = { x: clamp(center.x + 105, 90, viewport.width - 90), y: clamp(center.y - 100, 90, viewport.height - 90) };
+  ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.strokeStyle = isAutomorphism() ? "rgba(98,239,180,.28)" : "rgba(255,211,106,.25)"; ctx.lineWidth = 1;
+  for (const p of finitePositions) { ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.quadraticCurveTo((p.x+beacon.x)/2,Math.min(p.y,beacon.y)-35,beacon.x,beacon.y);ctx.stroke(); }
+  ctx.fillStyle = isAutomorphism() ? COLORS.green : COLORS.gold; ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 18; ctx.beginPath();ctx.arc(beacon.x,beacon.y,5,0,Math.PI*2);ctx.fill();ctx.restore();
+  drawLabel("shared output", beacon.x, beacon.y, isAutomorphism()?COLORS.green:COLORS.gold);
+}
+
+function drawMarkers(pulse, relationArcs) {
+  projectedMarkers = [];
+  const sorted = state.sceneData.markers.map((marker,index)=>({marker,index,projected:project(marker.world)})).sort((a,b)=>a.projected.depth-b.projected.depth);
+  const finitePositions = [];
+  for (const item of sorted) {
+    const { marker, index, projected } = item;
+    const selectedEntry = currentSheet();
+    const selected = selectedEntry && selectedEntry.id === marker.entry.id;
+    const color = markerColor(marker.type);
+    const radius = (selected ? 7.5 : 5.5) * (selected ? pulse : 1) * clamp(projected.scale, .65, 1.5);
+    ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = selected ? 24 : 15; ctx.globalAlpha = marker.type === "escape-ghost" ? .45 : .95;
+    ctx.beginPath(); ctx.arc(projected.x, projected.y, radius, 0, Math.PI * 2); ctx.fill();
+    if (marker.type.startsWith("escape")) { ctx.strokeStyle = color; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(projected.x,projected.y,radius+6,0,Math.PI*2);ctx.stroke(); }
+    if (marker.type === "boundary") { ctx.strokeStyle = "#fff2b8";ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(projected.x,projected.y,radius+4,0,Math.PI*2);ctx.stroke(); }
+    ctx.restore();
+    if (marker.type === "finite" || marker.type === "boundary") finitePositions.push(projected);
+    if (selected && marker.type !== "escape-ghost") drawLabel(marker.label, projected.x, projected.y, color);
+    projectedMarkers.push({ ...marker, screen: projected, hitRadius: Math.max(12, radius + 6), markerIndex: index });
+  }
+  if (relationArcs) drawRelationArcs(finitePositions);
+}
+
+function render(time = performance.now()) {
+  lastFrameTime = time;
+  if (camera.autoRotate) { camera.yaw += .00016 * Math.min(32, time - (render.lastTime ?? time)); frameRequested = true; }
+  render.lastTime = time;
+  if (frameRequested || state.animate || camera.autoRotate) {
+    drawBackground(time);
+    if (state.sceneData?.kind === "fiber") drawFiber(time); else if (state.sceneData) drawLandscape(time);
+    frameRequested = false;
+  }
+  if (state.animate && time - state.lastAnimatedUpdate > 110) {
+    state.lastAnimatedUpdate = time;
+    const amplitude = isAutomorphism() ? 1.8 : state.d === 3 ? .9 : 1.15;
+    state.alpha = state.animationCenter + amplitude * Math.sin(time * .00062);
+    state.activePreset = isAutomorphism() ? state.variant : "custom";
+    updateAll();
+  }
+  requestAnimationFrame(render);
+}
+
+function markerAt(clientX, clientY) {
+  const rect = elements.canvas.getBoundingClientRect();
+  const x = clientX - rect.left, y = clientY - rect.top;
+  return projectedMarkers
+    .map(marker => ({ marker, distance: Math.hypot(marker.screen.x - x, marker.screen.y - y) }))
+    .filter(item => item.distance <= item.marker.hitRadius)
+    .sort((a,b)=>a.distance-b.distance)[0]?.marker ?? null;
+}
+
+function selectEntry(entry) {
+  const index = state.analysis.sheets.findIndex(sheet => sheet.id === entry.id);
+  if (index >= 0) { state.selectedSheet = index; updateInspector(); frameRequested = true; }
+}
+
+function updateTooltip(event) {
+  const marker = markerAt(event.clientX, event.clientY);
+  hoveredMarker = marker;
+  if (!marker) { elements.tooltip.hidden = true; return; }
+  const rect = elements.canvas.getBoundingClientRect();
+  elements.tooltip.hidden = false;
+  elements.tooltip.style.left = `${clamp(event.clientX - rect.left + 14, 8, rect.width - 185)}px`;
+  elements.tooltip.style.top = `${clamp(event.clientY - rect.top - 48, 8, rect.height - 68)}px`;
+  elements.tooltip.innerHTML = `${marker.label}<small>click to inspect this sheet group</small>`;
 }
 
 function resetCamera() {
-  if (!camera || !controls) return;
-  if (state.mode === "fiber") camera.position.set(9.5, 6.6, 10.5);
-  else camera.position.set(8.7, 7.3, 9.6);
-  controls.target.set(0, state.mode === "fiber" ? 0.35 : 0.2, 0);
-  controls.autoRotate = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  controls.update();
+  Object.assign(camera, { yaw: -0.58, pitch: 0.34, zoom: 1, panX: 0, panY: 0, autoRotate: !matchMedia("(prefers-reduced-motion: reduce)").matches });
+  frameRequested = true;
 }
 
-function setMode(mode) {
-  if (mode === state.mode) return;
-  state.mode = mode;
-  state.lastStructureKey = "";
-  for (const button of elements.modeButtons) {
-    const selected = button.dataset.mode === mode;
-    button.classList.toggle("is-active", selected);
-    button.setAttribute("aria-pressed", String(selected));
-  }
-  resetCamera();
-  updateAll({ resetStructure: true });
+function applyTarget(target, preset) {
+  Object.assign(state, target);
+  state.activePreset = preset;
+  state.animate = false;
+  state.animationCenter = state.alpha;
+  elements.animate.setAttribute("aria-pressed", "false");
+  elements.animate.querySelector("span").textContent = "▶";
+  updateAll({ resetSelection: true });
 }
 
 function setAutomorphismVariant(variant) {
   state.variant = variant;
   state.activePreset = variant;
-  state.escapeT = null;
-  state.selectedRoot = 0;
-  updateAll({ resetStructure: true });
+  state.animate = false;
+  updateAll({ resetSelection: true });
 }
 
 function setFamily(family) {
   if (family === state.family) return;
-  familySnapshots[state.family] = {
-    d: state.d,
-    variant: state.variant,
-    alpha: state.alpha,
-    beta: state.beta,
-    gamma: state.gamma,
-    activePreset: state.activePreset,
-    escapeT: state.escapeT,
-  };
-  const next = familySnapshots[family] ?? {
-    d: 5,
-    variant: "chain",
-    ...initialCertificate.target,
-    activePreset: "collision",
-    escapeT: null,
-  };
+  familySnapshots[state.family] = { d: state.d, variant: state.variant, alpha: state.alpha, beta: state.beta, gamma: state.gamma, activePreset: state.activePreset };
+  Object.assign(state, familySnapshots[family] ?? (family === "counterexample" ? { d:5,variant:"chain",...initialCertificate.target,activePreset:"collision" } : { d:3,variant:"chain",alpha:2,beta:1,gamma:0,activePreset:"chain" }));
   state.family = family;
-  Object.assign(state, next);
-  state.animateTarget = false;
-  state.animationCenter = state.alpha;
-  state.selectedRoot = 0;
-  state.lastStructureKey = "";
-  elements.animateTarget.setAttribute("aria-pressed", "false");
-  elements.animateTarget.querySelector("span").textContent = "▶";
+  state.animate = false;
   resetCamera();
-  updateAll({ resetStructure: true });
+  updateAll({ resetSelection: true });
 }
 
-function selectRoot(index) {
-  const count = state.solution?.roots.length ?? 0;
-  if (!count) return;
-  state.selectedRoot = ((index % count) + count) % count;
-  updateInspector();
-  rebuildScene();
+function setMode(mode) {
+  if (mode === state.mode) return;
+  state.mode = mode;
+  for (const button of elements.modeButtons) { const active = button.dataset.mode === mode; button.classList.toggle("is-active", active); button.setAttribute("aria-pressed", String(active)); }
+  resetCamera();
+  updateAll();
 }
 
-function pointerCoordinates(event) {
-  const rect = renderer.domElement.getBoundingClientRect();
-  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-  return rect;
+function setCoordinate(key, value, source = "custom") {
+  if (!Number.isFinite(value)) return;
+  state[key] = value;
+  state.activePreset = isAutomorphism() ? state.variant : source;
+  state.animate = false;
+  elements.animate.setAttribute("aria-pressed", "false");
+  updateAll();
 }
 
-function intersectRoot(event) {
-  if (!renderer || !camera) return null;
-  pointerCoordinates(event);
-  raycaster.setFromCamera(pointer, camera);
-  return raycaster.intersectObjects(interactiveRoots, false)[0] ?? null;
-}
-
-function handlePointerMove(event) {
-  const intersection = intersectRoot(event);
-  if (!intersection) {
-    clearHover();
-    return;
-  }
-  hoveredRoot = intersection.object.userData.rootIndex;
-  const root = intersection.object.userData.root;
-  const rect = elements.scene.getBoundingClientRect();
-  elements.tooltip.hidden = false;
-  elements.tooltip.style.left = `${Math.min(event.clientX - rect.left + 14, rect.width - 180)}px`;
-  elements.tooltip.style.top = `${Math.max(10, event.clientY - rect.top - 42)}px`;
-  elements.tooltip.innerHTML = `T = ${formatComplex(root)}<small>click to inspect this sheet</small>`;
-}
-
-function clearHover() {
-  hoveredRoot = null;
-  elements.tooltip.hidden = true;
-}
-
-function handleRootClick(event) {
-  const intersection = intersectRoot(event);
-  if (intersection) selectRoot(intersection.object.userData.rootIndex);
-}
-
-function renderFrame() {
-  if (!renderer || !scene || !camera) return;
-  const elapsed = clock.getElapsedTime();
-  if (state.animateTarget && elapsed - state.lastAnimatedUpdate > 0.11) {
-    state.lastAnimatedUpdate = elapsed;
-    const amplitude = state.d === 3 ? 0.9 : 1.25;
-    const alphaMinimum = Number.parseFloat(elements.alpha.min);
-    const alphaMaximum = Number.parseFloat(elements.alpha.max);
-    state.alpha = Math.max(
-      alphaMinimum,
-      Math.min(alphaMaximum, state.animationCenter + amplitude * Math.sin(elapsed * 0.62)),
-    );
-    state.activePreset = isAutomorphism() ? state.variant : "custom";
-    state.escapeT = null;
-    updateAll();
-  }
-  const pulse = 1 + 0.08 * Math.sin(elapsed * 2.4);
-  selectedMeshes.forEach((mesh, index) => {
-    mesh.scale.setScalar(index % 2 === 0 ? pulse : 1 + (pulse - 1) * 0.6);
-  });
-  controls.update();
-  renderer.render(scene, camera);
-}
-
+for (const button of elements.familyButtons) button.addEventListener("click", () => setFamily(button.dataset.family));
+for (const button of elements.modeButtons) button.addEventListener("click", () => setMode(button.dataset.mode));
 elements.degree.addEventListener("input", () => {
   state.d = Number.parseInt(elements.degree.value, 10);
-  if (isAutomorphism()) updateAll({ resetStructure: true });
+  if (isAutomorphism()) updateAll({ resetSelection: true });
   else applyTarget(collisionCertificate(state.d).target, "collision");
 });
-
-for (const [key, element] of [["alpha", elements.alpha], ["beta", elements.beta], ["gamma", elements.gamma]]) {
-  element.addEventListener("input", () => {
-    state[key] = Number.parseFloat(element.value);
-    state.activePreset = isAutomorphism() ? state.variant : "custom";
-    state.escapeT = null;
-    state.animateTarget = false;
-    elements.animateTarget.setAttribute("aria-pressed", "false");
-    updateAll({ resetStructure: key !== "alpha" });
-  });
+for (const [key, range, number] of [
+  ["alpha", elements.alpha, elements.alphaNumber], ["beta", elements.beta, elements.betaNumber], ["gamma", elements.gamma, elements.gammaNumber],
+]) {
+  range.addEventListener("input", () => setCoordinate(key, Number.parseFloat(range.value)));
+  number.addEventListener("change", () => setCoordinate(key, Number.parseFloat(number.value)));
+  number.addEventListener("keydown", event => { if (event.key === "Enter") { number.blur(); setCoordinate(key, Number.parseFloat(number.value)); } });
 }
-
-elements.collisionPreset.addEventListener("click", () => {
-  if (isAutomorphism()) setAutomorphismVariant("identity");
-  else applyTarget(collisionCertificate(state.d).target, "collision");
+elements.presetOne.addEventListener("click", () => isAutomorphism() ? setAutomorphismVariant("identity") : applyTarget(collisionCertificate(state.d).target, "collision"));
+elements.presetTwo.addEventListener("click", () => isAutomorphism() ? setAutomorphismVariant("shear") : applyTarget(threeRealPreset(state.d), "nearby"));
+elements.presetThree.addEventListener("click", () => {
+  if (isAutomorphism()) { setAutomorphismVariant("chain"); return; }
+  const points = realCriticalTargets(state.d, state.beta, state.gamma);
+  const nearest = points.reduce((best, point) => !best || Math.abs(point.alpha-state.alpha)<Math.abs(best.alpha-state.alpha) ? point : best, null);
+  if (nearest) applyTarget({ alpha: nearest.alpha, beta: state.beta, gamma: state.gamma }, "escape");
 });
-
-elements.driftPreset.addEventListener("click", () => {
-  if (isAutomorphism()) setAutomorphismVariant("shear");
-  else applyTarget(threeRealPreset(state.d), "drift");
+elements.animate.addEventListener("click", () => {
+  state.animate = !state.animate; state.animationCenter = state.alpha;
+  elements.animate.setAttribute("aria-pressed", String(state.animate));
+  elements.animate.querySelector("span").textContent = state.animate ? "Ⅱ" : "▶";
 });
-
-elements.escapePreset.addEventListener("click", () => {
-  if (isAutomorphism()) {
-    setAutomorphismVariant("chain");
-    return;
-  }
-  const criticalTargets = realCriticalTargets(state.d, state.beta, state.gamma);
-  const nearest = criticalTargets.reduce((best, current) => {
-    if (!best) return current;
-    return Math.abs(current.alpha - state.alpha) < Math.abs(best.alpha - state.alpha) ? current : best;
-  }, null);
-  const target = nearest
-    ? { alpha: nearest.alpha, beta: state.beta, gamma: state.gamma }
-    : { ...collisionCertificate(state.d).target };
-  applyTarget(target, "escape", { escapeT: nearest?.t ?? null });
-});
-
-elements.animateTarget.addEventListener("click", () => {
-  state.animateTarget = !state.animateTarget;
-  state.animationCenter = state.alpha;
-  elements.animateTarget.setAttribute("aria-pressed", String(state.animateTarget));
-  elements.animateTarget.querySelector("span").textContent = state.animateTarget ? "Ⅱ" : "▶";
-});
-
 elements.resetCamera.addEventListener("click", resetCamera);
-elements.previousRoot.addEventListener("click", () => selectRoot(state.selectedRoot - 1));
-elements.nextRoot.addEventListener("click", () => selectRoot(state.selectedRoot + 1));
-elements.modeButtons.forEach((button) => button.addEventListener("click", () => setMode(button.dataset.mode)));
-elements.familyButtons.forEach((button) => button.addEventListener("click", () => setFamily(button.dataset.family)));
+elements.previousSheet.addEventListener("click", () => { state.selectedSheet -= 1; updateInspector(); frameRequested = true; });
+elements.nextSheet.addEventListener("click", () => { state.selectedSheet += 1; updateInspector(); frameRequested = true; });
 
-initializeScene();
-updateAll({ resetStructure: true });
+elements.canvas.addEventListener("contextmenu", event => event.preventDefault());
+elements.canvas.addEventListener("pointerdown", event => {
+  elements.canvas.setPointerCapture(event.pointerId);
+  pointerState.down = true; pointerState.x = event.clientX; pointerState.y = event.clientY; pointerState.moved = 0;
+  pointerState.mode = event.shiftKey || event.button === 2 ? "pan" : "rotate";
+  camera.autoRotate = false;
+});
+elements.canvas.addEventListener("pointermove", event => {
+  if (!pointerState.down) { updateTooltip(event); return; }
+  const dx = event.clientX - pointerState.x, dy = event.clientY - pointerState.y;
+  pointerState.x = event.clientX; pointerState.y = event.clientY; pointerState.moved += Math.hypot(dx,dy);
+  if (pointerState.mode === "pan") { camera.panX += dx; camera.panY += dy; }
+  else { camera.yaw += dx * .008; camera.pitch = clamp(camera.pitch + dy * .007, -1.25, 1.25); }
+  frameRequested = true; elements.tooltip.hidden = true;
+});
+elements.canvas.addEventListener("pointerup", event => {
+  if (pointerState.moved < 6) { const marker = markerAt(event.clientX,event.clientY); if (marker) selectEntry(marker.entry); }
+  pointerState.down = false;
+});
+elements.canvas.addEventListener("pointerleave", () => { elements.tooltip.hidden = true; if (!pointerState.down) hoveredMarker = null; });
+elements.canvas.addEventListener("wheel", event => { event.preventDefault(); camera.autoRotate = false; camera.zoom = clamp(camera.zoom * Math.exp(-event.deltaY * .0011), .5, 2.7); frameRequested = true; }, { passive: false });
+elements.canvas.addEventListener("dblclick", resetCamera);
+window.addEventListener("keydown", event => { if (event.key === "ArrowLeft") { state.selectedSheet -= 1; updateInspector(); frameRequested = true; } if (event.key === "ArrowRight") { state.selectedSheet += 1; updateInspector(); frameRequested = true; } });
+
+new ResizeObserver(resizeCanvas).observe(elements.canvas);
+createStars();
+resizeCanvas();
+updateAll({ resetSelection: true });
+requestAnimationFrame(render);
+
+window.__JACOBIAN_LAB__ = {
+  setState(partial) {
+    if (partial.family && partial.family !== state.family) setFamily(partial.family);
+    if (partial.mode && partial.mode !== state.mode) setMode(partial.mode);
+    for (const key of ["variant", "d", "alpha", "beta", "gamma", "activePreset"]) if (key in partial) state[key] = partial[key];
+    if (partial.camera) Object.assign(camera, partial.camera);
+    updateAll({ resetSelection: true });
+  },
+  setMode,
+  setFamily,
+  resetCamera,
+  snapshot() {
+    return {
+      state: { family: state.family, variant: state.variant, mode: state.mode, d: state.d, alpha: state.alpha, beta: state.beta, gamma: state.gamma, activePreset: state.activePreset },
+      analysis: {
+        genericDegree: state.analysis.genericDegree, chartDegree: state.analysis.chartDegree,
+        finiteChartCount: state.analysis.finiteChartCount, boundaryCount: state.analysis.boundaryCount,
+        finiteAffineCount: state.analysis.finiteAffineCount, repeatedEscapeCount: state.analysis.repeatedEscapeCount,
+        escapeAtChartInfinity: state.analysis.escapeAtChartInfinity, escapeCount: state.analysis.escapeCount,
+        unresolvedCount: state.analysis.unresolvedCount, maximumRelativeResidual: state.analysis.maximumRelativeResidual,
+        roots: state.analysis.allPolynomialRoots.map(entry => ({ re: entry.displayRoot?.re ?? null, im: entry.displayRoot?.im ?? null, kind: entry.kind, multiplicity: entry.multiplicity })),
+      },
+      transform: state.sceneData.transform.label,
+      markers: projectedMarkers.map(marker => ({ type: marker.type, x: marker.screen.x, y: marker.screen.y, label: marker.label })),
+      canvas: { width: viewport.width, height: viewport.height },
+      camera: { ...camera },
+    };
+  },
+};
