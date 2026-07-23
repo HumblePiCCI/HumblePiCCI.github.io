@@ -41,3 +41,12 @@ jobs:
           node --check jacobian-counterexample-factory/visualizer/app.js
       - name: Test visualizer mathematics
         run: node --test jacobian-counterexample-factory/visualizer/tests/math.test.mjs
+      - name: Upload review snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacobian-visualizer-source
+          path: |
+            jacobian-counterexample-factory
+            .github/workflows/jacobian-counterexample-factory.yml
+          if-no-files-found: error
+          retention-days: 7
