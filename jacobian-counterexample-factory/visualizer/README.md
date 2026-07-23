@@ -82,9 +82,12 @@ was clicked.
    inferred from a tolerance or mislabeled as infinity.
 3. **Repeated roots.** When `P(T) = P'(T) = 0`, reconstruction cannot produce a
    finite `x`; the associated generic sheets escape through infinity.
-4. **Degree loss at chart infinity.** After accounting for finite `x = 0`
-   sources, any remaining generic sheets absent from the special affine fiber
-   are reported as nonproper branches at infinity.
+4. **Degree loss at chart infinity.** In the exact `gamma = 0`
+   specialization, after accounting for the finite `x = 0` source, any
+   remaining generic sheets absent from the special affine fiber are reported
+   as nonproper branches at infinity. For nonzero `gamma`, an apparent degree
+   drop can only come from floating-point coefficient underflow, so the
+   missing sheets are numerically unresolved rather than geometric escape.
 5. **Numerical uncertainty.** Undefined or unresolved values receive an
    explicit status. `NaN` is never formatted as a signed infinity.
 

@@ -119,6 +119,30 @@ def run() -> None:
             assert data["analysis"]["unresolvedCount"] == 0, data
             assert data["analysis"]["sheetAccountingValid"] is True, data
             assert page.locator("#accounting-total").inner_text() == "3 / 3 sheets"
+            assert page.locator("#truth-title").inner_text() == "Numerical fiber analysis"
+
+        # If binary64 arithmetic underflows a mathematically nonzero leading
+        # coefficient, the lost sheets are numerical unknowns—not geometry at
+        # infinity. Only the exact gamma=0 specialization can certify chart
+        # infinity from degree loss.
+        data = set_state(
+            page,
+            mode="fiber",
+            d=6,
+            alpha=-0.25,
+            beta=0,
+            gamma=1e-100,
+            activePreset="custom",
+        )
+        assert data["analysis"]["chartDegree"] < 6, data
+        assert data["analysis"]["escapeAtChartInfinity"] == 0, data
+        assert data["analysis"]["escapeCount"] == 0, data
+        assert data["analysis"]["unresolvedCount"] == 6, data
+        assert data["analysis"]["accountedSheets"] + data["analysis"]["unresolvedCount"] == 6, data
+        assert data["analysis"]["sheetAccountingValid"] is True, data
+        assert page.locator("#count-escape").inner_text() == "0"
+        assert page.locator("#count-unresolved").inner_text() == "6"
+        assert page.locator("#accounting-total").inner_text() == "6 / 6 sheets"
 
         # The cubic collision has two x != 0 roots and one finite x = 0 source.
         data = set_state(page, mode="fiber", d=3, alpha=-0.25, beta=0, gamma=0, activePreset="collision")

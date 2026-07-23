@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { realCriticalTargets } from "../math.js";
 
 const API_NAME = "__JACOBIAN_LAB__";
 
@@ -136,8 +137,34 @@ test("boundary-chart sources are gated by exact gamma zero", async ({ page }) =>
     expectNoBoundaryMarker(data);
     await expect(page.locator("#count-boundary")).toHaveText("0");
     await expect(page.locator("#accounting-total")).toHaveText("3 / 3 sheets");
+    await expect(page.locator("#truth-title")).toHaveText("Numerical fiber analysis");
   }
 
+  expect(errors).toEqual([]);
+});
+
+test("nonzero gamma coefficient underflow is numerical, not geometric infinity", async ({ page }) => {
+  const errors = await openLab(page);
+  const data = await setLabState(page, {
+    family: "counterexample",
+    mode: "fiber",
+    d: 6,
+    alpha: -0.25,
+    beta: 0,
+    gamma: 1e-100,
+    activePreset: "custom",
+  });
+
+  expect(data.analysis.chartDegree).toBeLessThan(6);
+  expect(data.analysis.escapeAtChartInfinity).toBe(0);
+  expect(data.analysis.escapeCount).toBe(0);
+  expect(data.analysis.unresolvedCount).toBe(6);
+  expect(data.analysis.accountedSheets + data.analysis.unresolvedCount).toBe(6);
+  expect(data.analysis.sheetAccountingValid).toBe(true);
+  await expect(page.locator("#count-escape")).toHaveText("0");
+  await expect(page.locator("#count-unresolved")).toHaveText("6");
+  await expect(page.locator("#accounting-total")).toHaveText("6 / 6 sheets");
+  await expect(page.locator("#truth-title")).toHaveText("Numerical fiber analysis");
   expect(errors).toEqual([]);
 });
 
@@ -255,7 +282,20 @@ test("all presets remain playable and use the current mathematical copy", async 
 
   await page.locator("#preset-two").click();
   await expect(page.locator("#truth-title")).toHaveText("Numerical fiber analysis");
+  const criticalTargets = realCriticalTargets(5, 16, 1);
+  expect(criticalTargets.length).toBeGreaterThan(1);
+  const expectedNearest = criticalTargets.at(-1);
+  await setLabState(page, {
+    family: "counterexample",
+    d: 5,
+    alpha: expectedNearest.alpha + 0.01,
+    beta: 16,
+    gamma: 1,
+    activePreset: "custom",
+  });
   await page.locator("#preset-three").click();
+  const selectedTangency = await snapshot(page);
+  expect(selectedTangency.state.alpha).toBeCloseTo(expectedNearest.alpha, 8);
   await expect(page.locator("#solver-status")).toHaveText("P and P′ share a root");
   await page.locator("#preset-one").click();
   await expect(page.locator("#truth-title")).toHaveText("Stored exact certificate");
