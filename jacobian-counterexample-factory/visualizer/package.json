@@ -1,0 +1,12 @@
+{
+  "name": "jacobian-fiber-lab",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:math": "node --test tests/math.test.mjs",
+    "test:browser": "playwright test --config=playwright.config.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.54.2"
+  }
+}
