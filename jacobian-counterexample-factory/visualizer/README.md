@@ -1,124 +1,139 @@
 # Jacobian Fiber Lab
 
-An immersive static visualizer comparing two mathematically distinct classes
-of Keller maps:
+An immersive static visualizer for two mathematically distinct classes of
+constant-Jacobian polynomial maps:
 
-- conjecture-compatible polynomial automorphisms with determinant `1`, an
-  explicit polynomial inverse, and exactly one preimage for every target; and
-- the exact non-injective constant-Jacobian family in this repository, with
-  determinant `-2` and certified collisions.
+- determinant-one polynomial automorphisms with explicit inverses; and
+- the repository's noninjective family `G_d`, with determinant `-2` and exact
+  collision certificates.
 
-Open `index.html` through a local web server or visit the GitHub Pages route.
+The full maps live in six real dimensions. The lab therefore visualizes the
+one-variable fiber equation
 
-From the repository root:
+```text
+P(T) = h_d(T, gamma) + beta*T - 2*alpha
+```
+
+and keeps the distinction between the rational `T`-chart and the full affine
+source space explicit.
+
+## Run locally
+
+From `jacobian-counterexample-factory/`:
 
 ```bash
 python -m http.server 8000
 ```
 
-Then open:
+Open:
 
 ```text
-http://localhost:8000/jacobian-counterexample-factory/visualizer/
+http://localhost:8000/visualizer/
 ```
 
-## What the two views mean
+## What is represented
 
-The **Automorphisms / Counterexamples** switch changes the map class. The
-classification badge, palette, formulas, determinant, inverse/collision
-certificate, presets, legends, and 3D relation diagram all change together so
-the two classes cannot be confused.
+### Fiber atlas
 
-### Conjecture-compatible examples
-
-For an integer `k >= 2`, the three automorphism presets are
+For fixed `d`, `beta`, and `gamma`, the real sculpture uses
 
 ```text
-I(x,y,z)   = (x, y, z)
-S_k(x,y,z) = (x + y^k, y, z)
-A_k(x,y,z) = (x + y^k, y + z^k, z).
+alpha(T) = (h_d(T, gamma) + beta*T) / 2
+x(T)     = 2 / (h_T(T, gamma) + beta).
 ```
 
-They have triangular Jacobian matrices with diagonal `(1,1,1)`, so their
-determinant is exactly `1`. The chained example has the explicit inverse
+A target plane at the selected `alpha` meets this curve at real simple roots.
+Each such root reconstructs a finite source on `x != 0`.
+
+The horizontal display coordinate is an adaptive, disclosed transform
 
 ```text
-z = gamma
-y = beta - gamma^k
-x = alpha - y^k.
+u = asinh((T - center) / scale).
 ```
 
-Thus every complex target `(alpha,beta,gamma)` has exactly one preimage. With
-`T=x`, its displayed fiber equation is the linear polynomial
-
-```text
-P(T) = T + (beta - gamma^k)^k - alpha.
-```
-
-The identity and single-shear presets are the corresponding simplifications.
-The automorphism sculpture and landscape are recentered at the unique root;
-all inspected coordinates remain the uncentered mathematical values.
-
-### Fiber sculpture
-
-For fixed `d`, `beta`, and `gamma`, the sculpture is the real parametric curve
-
-```text
-t      -> horizontal axis
-alpha  = (h(t, gamma) + beta*t) / 2
-x      = 2 / (h_T(t, gamma) + beta)
-```
-
-For the counterexample family, the visual uses `asinh`-style logarithmic compression on the `alpha` and `x`
-axes so escaping branches remain visible. The glowing target plane is the
-current constant value of `alpha`; its intersections with the sculpture are
-the real roots of the fiber polynomial and hence the real finite preimages on
-the `x != 0` chart.
-
-At a repeated root, `P'(t) = 0`, so `x = 2/P'(t)` escapes to infinity. The
-visual break in the sculpture is therefore mathematical, not decorative.
+It is fitted from all current real roots and critical points, so a root near
+`T=200` is not silently dropped. Actual, uncompressed coordinates remain in
+the inspector.
 
 ### Complex landscape
 
-The landscape plots
+The landscape evaluates the same exact polynomial over a two-dimensional
+adaptive coordinate chart:
 
 ```text
-(Re T, Im T) -> log(1 + |P(T)|)
+u = asinh((Re T - center_re) / scale_re)
+v = asinh((Im T - center_im) / scale_im).
 ```
 
-for
+The surface height is a normalized `log(1 + |P(T)|)` value. Every numerical
+polynomial root is placed inside the declared display window; the UI shows the
+actual complex `T` and the maximum relative residual.
 
-```text
-P(T) = h_d(T, gamma) + beta*T - 2*alpha.
-```
+## Complete fiber accounting
 
-Every displayed counterexample root is a numerical zero of the exact polynomial
-assembled from the same formulas as `src/jacobian_factory/factory.py`. The UI
-reports the largest evaluated root residual. Clicking a root reconstructs its
-full complex source coordinates `(x, y, z)`. For an automorphism, the landscape
-is the exact translated linear residual `|T - T_0|`, centered at its unique
-root `T_0` to avoid floating-point cancellation for large shear exponents.
+The lab classifies sheets from the mathematics, not from which preset button
+was clicked.
 
-## Accuracy boundary
+1. **Simple roots on `x != 0`.** These reconstruct finite affine sources via
+   `x = 2/P'(T)`.
+2. **Finite sources on `x = 0`.** When `gamma = 0`, the rational `T` coordinate
+   omits a finite boundary-chart source. It is reconstructed separately and is
+   never mislabeled as infinity.
+3. **Repeated roots.** When `P(T) = P'(T) = 0`, reconstruction cannot produce a
+   finite `x`; the associated generic sheets escape through infinity.
+4. **Degree loss at chart infinity.** After accounting for finite `x = 0`
+   sources, any remaining generic sheets absent from the special affine fiber
+   are reported as nonproper branches at infinity.
+5. **Numerical uncertainty.** Undefined or unresolved values receive an
+   explicit status. `NaN` is never formatted as a signed infinity.
 
-- Family formulas and stored collision certificates are exact transcriptions
-  of the SymPy implementation.
-- The automorphism examples are certified by their displayed triangular
-  Jacobian and explicit polynomial inverse; the tests check all three variants
-  for `2 <= k <= 12`.
-- The browser reconstructs and renders roots numerically. It always exposes the
-  maximum root residual instead of presenting floating-point output as exact.
-- `det DG_d = -2` comes from the repository's exact structural and brute-force
-  certificates; it is not estimated from the mesh.
-- The cubic collision target has two finite roots on the `x != 0` chart and one
-  sheet at infinity. The UI reports that degeneration explicitly.
+At the cubic collision target, the correct accounting is three finite affine
+preimages: two simple roots on `x != 0` and the finite point
+`(0, 0, -1/4)` on `x = 0`.
+
+## Exact versus numerical claims
+
+- Family formulas, determinants, generic degrees, and stored collision
+  certificates are established by the exact SymPy package.
+- The browser re-evaluates stored certificates numerically and reports the
+  measured error; it does not call that floating-point check an exact proof.
+- Root locations and rendered meshes are numerical. Their maximum relative
+  residual is always exposed.
+- The automorphism chamber displays the exact triangular inverse and has one
+  affine preimage for every target.
+
+## Interaction
+
+- drag to rotate;
+- Shift-drag or right-drag to pan;
+- wheel to zoom;
+- click a marker to inspect its sheet group;
+- use the exact-collision, nearby-fiber, and escape-wall presets;
+- switch between the real fiber atlas and the complex landscape.
+
+The renderer is dependency-free Canvas 2D with an explicit 3D camera. This
+removes CDN/runtime fragility and avoids WebGL resource leaks during long
+interactive sessions.
 
 ## Tests
+
+Pure mathematics:
 
 ```bash
 node --test visualizer/tests/math.test.mjs
 ```
 
-The tests cover the automorphisms' inverse, determinant, unique fiber root,
-counterexample degree construction, collision evaluation, numerical roots, and
-source reconstruction independently of WebGL.
+Browser smoke test:
+
+```bash
+python -m pip install playwright==1.61.0
+python -m playwright install chromium
+python -m http.server 8765 &
+JACOBIAN_LAB_URL=http://127.0.0.1:8765/visualizer/ \
+  python visualizer/tests/browser_smoke.py
+```
+
+The browser suite exercises desktop and mobile layouts, both chambers and both
+scene modes, a far-off cubic root, the cubic `x = 0` source, a manually entered
+tangency, marker visibility, rotate/pan/zoom/reset, screenshots, and console
+errors.
