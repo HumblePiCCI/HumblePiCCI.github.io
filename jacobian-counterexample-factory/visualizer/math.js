@@ -124,13 +124,14 @@ export function reconstructSource(d,root,target){
   if(![x,y,z].every(isFiniteComplex))return{status:"numerically-undefined",root,slope,x,y,z}; return{status:"finite-chart",root,slope,x,y,z};
 }
 
-export function boundaryChartSource(d,target,tolerance=1e-12){
-  if(Math.abs(target.gamma)>tolerance)return null;let source;
+export function boundaryChartSource(d,target){
+  if(target.gamma!==0)return null;let source;
   if(d===3)source=[0,target.beta,target.alpha-4*target.beta**2];
   else if(d===5)source=[0,-target.beta/2,2.5*target.beta**2-target.alpha];
   else source=[0,-target.beta/2,11/8*target.beta**2-target.alpha];
   const image=evaluateCounterexampleMap(d,source),expected=[target.alpha,target.beta,target.gamma],error=Math.max(...image.map((v,i)=>Math.abs(v-expected[i])));
-  return{status:"finite-boundary-chart",source,image,numericalError:error,chart:"x = 0"};
+  const targetMatched=error<=1e-9;
+  return{status:targetMatched?"finite-boundary-chart":"numerically-unresolved-boundary",source,image,numericalError:error,targetMatched,chart:"x = 0"};
 }
 
 export function frameCurvePoint(d,t,beta,gamma){
@@ -148,11 +149,11 @@ export function analyzeCounterexampleFiber(d,target){
   const coefficients=fiberPolynomialCoefficients(d,target.alpha,target.beta,target.gamma),derivative=derivativeCoefficients(coefficients),solution=solvePolynomial(coefficients),candidates=detectMultipleRoots(coefficients),repeated=candidates.filter(v=>v.exactWithinNumerics),nearMultipleRoots=candidates.filter(v=>!v.exactWithinNumerics),clusters=clusterSimpleRoots(removeAssignedRoots(solution.roots,repeated));
   const finiteChartRoots=clusters.map((cluster,index)=>{const root=cluster.root,source=reconstructSource(d,root,target),residual=relativePolynomialResidual(coefficients,root),slopeMagnitude=source.slope?cAbs(source.slope):0;return{id:`chart-${index}`,kind:source.status==="finite-chart"?"finite-chart":"unresolved",root,multiplicity:cluster.members.length,residual,slopeMagnitude,nearEscape:source.status==="finite-chart"&&(slopeMagnitude<1e-5||cAbs(source.x)>1e6),source};});
   const repeatedEntries=repeated.map((v,i)=>({id:`escape-${i}`,kind:"escape-repeated-root",root:v.root,multiplicity:v.multiplicity,residual:v.residual,source:null}));
-  const boundary=boundaryChartSource(d,target),boundaryEntries=boundary?[{id:"boundary-0",kind:"finite-boundary-chart",multiplicity:1,root:null,source:boundary,residual:boundary.numericalError}]:[];
-  const chartDegree=solution.degree,chartDegreeLoss=Math.max(0,d-chartDegree),boundaryCount=boundaryEntries.length,escapeAtChartInfinity=Math.max(0,chartDegreeLoss-boundaryCount),repeatedEscapeCount=repeatedEntries.reduce((s,v)=>s+v.multiplicity,0),finiteChartCount=finiteChartRoots.filter(v=>v.kind==="finite-chart").length,unresolvedChartCount=finiteChartRoots.filter(v=>v.kind==="unresolved").length,finiteAffineCount=finiteChartCount+boundaryCount,escapeCount=repeatedEscapeCount+escapeAtChartInfinity,accountedSheets=finiteAffineCount+escapeCount,unresolvedCount=Math.max(unresolvedChartCount,d-accountedSheets);
+  const boundary=boundaryChartSource(d,target),boundaryEntries=boundary?[{id:"boundary-0",kind:boundary.targetMatched?"finite-boundary-chart":"unresolved",multiplicity:1,root:null,source:boundary,residual:boundary.numericalError}]:[];
+  const chartDegree=solution.degree,chartDegreeLoss=Math.max(0,d-chartDegree),boundaryCount=boundaryEntries.filter(v=>v.kind==="finite-boundary-chart").length,unresolvedBoundaryCount=boundaryEntries.length-boundaryCount,escapeAtChartInfinity=Math.max(0,chartDegreeLoss-boundaryEntries.length),repeatedEscapeCount=repeatedEntries.reduce((s,v)=>s+v.multiplicity,0),finiteChartCount=finiteChartRoots.filter(v=>v.kind==="finite-chart").length,unresolvedChartCount=finiteChartRoots.filter(v=>v.kind==="unresolved").length,finiteAffineCount=finiteChartCount+boundaryCount,escapeCount=repeatedEscapeCount+escapeAtChartInfinity,accountedSheets=finiteAffineCount+escapeCount,unresolvedCount=Math.max(unresolvedChartCount+unresolvedBoundaryCount,d-accountedSheets),sheetAccountingValid=accountedSheets<=d&&accountedSheets+unresolvedCount===d;
   const infinityEntries=escapeAtChartInfinity?[{id:"escape-chart-infinity",kind:"escape-chart-infinity",root:null,multiplicity:escapeAtChartInfinity,residual:0,source:null}]:[];
   const sheets=[...finiteChartRoots,...boundaryEntries,...repeatedEntries,...infinityEntries],allPolynomialRoots=[...finiteChartRoots.map(v=>({...v,displayRoot:v.root})),...repeatedEntries.map(v=>({...v,displayRoot:v.root}))];
-  return{family:"counterexample",d,target:{...target},coefficients,derivative,solution,chartDegree,genericDegree:d,chartDegreeLoss,finiteChartRoots,boundaryEntries,repeatedEntries,infinityEntries,nearMultipleRoots,allPolynomialRoots,sheets,finiteChartCount,boundaryCount,finiteAffineCount,repeatedEscapeCount,escapeAtChartInfinity,escapeCount,unresolvedCount,accountedSheets,maximumRelativeResidual:Math.max(solution.relativeResidual,...finiteChartRoots.map(v=>v.residual),...repeatedEntries.map(v=>v.residual),0)};
+  return{family:"counterexample",d,target:{...target},coefficients,derivative,solution,chartDegree,genericDegree:d,chartDegreeLoss,finiteChartRoots,boundaryEntries,repeatedEntries,infinityEntries,nearMultipleRoots,allPolynomialRoots,sheets,finiteChartCount,boundaryCount,finiteAffineCount,repeatedEscapeCount,escapeAtChartInfinity,escapeCount,unresolvedCount,accountedSheets,sheetAccountingValid,maximumRelativeResidual:Math.max(solution.relativeResidual,...finiteChartRoots.map(v=>v.residual),...repeatedEntries.map(v=>v.residual),0)};
 }
 
 const AUTOMORPHISM_VARIANTS=new Set(["identity","shear","chain"]);
@@ -166,7 +167,7 @@ export function automorphismJacobian(k,point,variant="chain"){assertAutomorphism
 export function determinant3(m){const[a,b,c]=m;return a[0]*(b[1]*c[2]-b[2]*c[1])-a[1]*(b[0]*c[2]-b[2]*c[0])+a[2]*(b[0]*c[1]-b[1]*c[0]);}
 export function analyzeAutomorphismFiber(k,target,variant="chain"){
   const coefficients=automorphismFiberCoefficients(k,target.alpha,target.beta,target.gamma,variant),root=complex(-coefficients[0],0),tuple=invertAutomorphismMap(k,target,variant),source={status:"finite-chart",root,slope:complex(1,0),x:complex(tuple[0],0),y:complex(tuple[1],0),z:complex(tuple[2],0)},entry={id:"automorphism-0",kind:"finite-chart",root,multiplicity:1,residual:0,slopeMagnitude:1,nearEscape:false,source};
-  return{family:"automorphism",d:k,target:{...target},variant,coefficients,derivative:[1],solution:{roots:[root],degree:1,iterations:1,converged:true,residual:0,relativeResidual:0,variableScale:1},chartDegree:1,genericDegree:1,chartDegreeLoss:0,finiteChartRoots:[entry],boundaryEntries:[],repeatedEntries:[],infinityEntries:[],nearMultipleRoots:[],allPolynomialRoots:[{...entry,displayRoot:root}],sheets:[entry],finiteChartCount:1,boundaryCount:0,finiteAffineCount:1,repeatedEscapeCount:0,escapeAtChartInfinity:0,escapeCount:0,unresolvedCount:0,accountedSheets:1,maximumRelativeResidual:0};
+  return{family:"automorphism",d:k,target:{...target},variant,coefficients,derivative:[1],solution:{roots:[root],degree:1,iterations:1,converged:true,residual:0,relativeResidual:0,variableScale:1},chartDegree:1,genericDegree:1,chartDegreeLoss:0,finiteChartRoots:[entry],boundaryEntries:[],repeatedEntries:[],infinityEntries:[],nearMultipleRoots:[],allPolynomialRoots:[{...entry,displayRoot:root}],sheets:[entry],finiteChartCount:1,boundaryCount:0,finiteAffineCount:1,repeatedEscapeCount:0,escapeAtChartInfinity:0,escapeCount:0,unresolvedCount:0,accountedSheets:1,sheetAccountingValid:true,maximumRelativeResidual:0};
 }
 
 export function collisionCertificate(d){

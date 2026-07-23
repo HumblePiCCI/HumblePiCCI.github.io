@@ -76,9 +76,10 @@ was clicked.
 
 1. **Simple roots on `x != 0`.** These reconstruct finite affine sources via
    `x = 2/P'(T)`.
-2. **Finite sources on `x = 0`.** When `gamma = 0`, the rational `T` coordinate
-   omits a finite boundary-chart source. It is reconstructed separately and is
-   never mislabeled as infinity.
+2. **Finite sources on `x = 0`.** Exactly when `gamma = 0`, the rational `T`
+   coordinate omits a finite boundary-chart source. It is reconstructed
+   separately, numerically checked against the selected target, and never
+   inferred from a tolerance or mislabeled as infinity.
 3. **Repeated roots.** When `P(T) = P'(T) = 0`, reconstruction cannot produce a
    finite `x`; the associated generic sheets escape through infinity.
 4. **Degree loss at chart infinity.** After accounting for finite `x = 0`
@@ -134,6 +135,7 @@ JACOBIAN_LAB_URL=http://127.0.0.1:8765/visualizer/ \
 ```
 
 The browser suite exercises desktop and mobile layouts, both chambers and both
-scene modes, a far-off cubic root, the cubic `x = 0` source, a manually entered
+scene modes, a far-off cubic root, the cubic `x = 0` source, tiny nonzero
+`gamma` values that must not create a boundary source, a manually entered
 tangency, marker visibility, rotate/pan/zoom/reset, screenshots, and console
 errors.

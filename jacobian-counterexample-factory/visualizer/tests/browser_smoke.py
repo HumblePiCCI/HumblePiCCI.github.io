@@ -99,6 +99,27 @@ def run() -> None:
         assert_markers_inside(data, "finite")
         page.screenshot(path=str(RESULTS / "desktop-landscape.png"), full_page=True)
 
+        # An x=0 source exists only over gamma exactly zero. Tiny nonzero
+        # leading coefficients retain all three chart roots without adding a
+        # tolerance-created fourth affine source.
+        for tiny_gamma in (1e-13, -1e-13):
+            data = set_state(
+                page,
+                mode="fiber",
+                d=3,
+                alpha=-0.25,
+                beta=0,
+                gamma=tiny_gamma,
+                activePreset="custom",
+            )
+            assert data["analysis"]["chartDegree"] == 3, data
+            assert data["analysis"]["boundaryCount"] == 0, data
+            assert data["analysis"]["finiteAffineCount"] == 3, data
+            assert data["analysis"]["accountedSheets"] == 3, data
+            assert data["analysis"]["unresolvedCount"] == 0, data
+            assert data["analysis"]["sheetAccountingValid"] is True, data
+            assert page.locator("#accounting-total").inner_text() == "3 / 3 sheets"
+
         # The cubic collision has two x != 0 roots and one finite x = 0 source.
         data = set_state(page, mode="fiber", d=3, alpha=-0.25, beta=0, gamma=0, activePreset="collision")
         assert data["analysis"]["finiteChartCount"] == 2, data

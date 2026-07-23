@@ -325,11 +325,14 @@ function updateAnalysisUI() {
   elements.countBoundary.textContent = String(a.boundaryCount);
   elements.countEscape.textContent = String(a.escapeCount);
   elements.countUnresolved.textContent = String(a.unresolvedCount);
-  elements.accountingTotal.textContent = `${a.finiteAffineCount + a.escapeCount + a.unresolvedCount} / ${a.genericDegree} sheets`;
-  elements.solverStatus.textContent = a.repeatedEscapeCount
+  const displayedSheetCount = a.finiteAffineCount + a.escapeCount + a.unresolvedCount;
+  elements.accountingTotal.textContent = a.sheetAccountingValid ? `${displayedSheetCount} / ${a.genericDegree} sheets` : `unresolved / ${a.genericDegree} sheets`;
+  elements.solverStatus.textContent = !a.sheetAccountingValid
+    ? "sheet-accounting caution"
+    : a.repeatedEscapeCount
     ? "P and P′ share a root"
     : a.unresolvedCount ? "numerical caution" : a.solution.converged ? "converged" : "refining";
-  elements.solverStatus.style.color = a.repeatedEscapeCount || a.unresolvedCount ? "var(--gold)" : "";
+  elements.solverStatus.style.color = !a.sheetAccountingValid || a.repeatedEscapeCount || a.unresolvedCount ? "var(--gold)" : "";
   elements.equationDetail.textContent = isAutomorphism()
     ? "linear fiber · exactly one finite complex preimage"
     : `generic degree ${a.genericDegree} · degree ${a.chartDegree} in this T-chart · ${a.boundaryCount} finite boundary-chart source${a.boundaryCount === 1 ? "" : "s"}`;
@@ -799,7 +802,8 @@ window.__JACOBIAN_LAB__ = {
         finiteChartCount: state.analysis.finiteChartCount, boundaryCount: state.analysis.boundaryCount,
         finiteAffineCount: state.analysis.finiteAffineCount, repeatedEscapeCount: state.analysis.repeatedEscapeCount,
         escapeAtChartInfinity: state.analysis.escapeAtChartInfinity, escapeCount: state.analysis.escapeCount,
-        unresolvedCount: state.analysis.unresolvedCount, maximumRelativeResidual: state.analysis.maximumRelativeResidual,
+        unresolvedCount: state.analysis.unresolvedCount, accountedSheets: state.analysis.accountedSheets,
+        sheetAccountingValid: state.analysis.sheetAccountingValid, maximumRelativeResidual: state.analysis.maximumRelativeResidual,
         roots: state.analysis.allPolynomialRoots.map(entry => ({ re: entry.displayRoot?.re ?? null, im: entry.displayRoot?.im ?? null, kind: entry.kind, multiplicity: entry.multiplicity })),
       },
       transform: state.sceneData.transform.label,
