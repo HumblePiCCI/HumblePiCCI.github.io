@@ -86,3 +86,32 @@ jobs:
           path: jacobian-counterexample-factory/visualizer/tests/test-results/*.png
           if-no-files-found: error
           retention-days: 14
+
+  visualizer-playwright:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: jacobian-counterexample-factory/visualizer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: jacobian-counterexample-factory/visualizer/package-lock.json
+      - name: Install browser suite
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Exercise the maintained Playwright suite
+        run: npm run test:browser
+      - name: Upload Playwright report and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacobian-fiber-lab-playwright
+          path: |
+            jacobian-counterexample-factory/visualizer/playwright-report/
+            jacobian-counterexample-factory/visualizer/test-results/
+          if-no-files-found: error
+          retention-days: 14

@@ -124,7 +124,16 @@ Pure mathematics:
 node --test visualizer/tests/math.test.mjs
 ```
 
-Browser smoke test:
+Maintained Playwright desktop/mobile suite:
+
+```bash
+cd visualizer
+npm ci
+npx playwright install chromium
+npm run test:browser
+```
+
+Equivalent dependency-light Python smoke suite:
 
 ```bash
 python -m pip install playwright==1.61.0

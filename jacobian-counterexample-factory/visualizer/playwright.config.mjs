@@ -14,7 +14,7 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   webServer: {
-    command: "python -m http.server 8765 --bind 127.0.0.1",
+    command: "python3 -m http.server 8765 --bind 127.0.0.1",
     cwd: "../..",
     url: "http://127.0.0.1:8765/jacobian-counterexample-factory/visualizer/",
     reuseExistingServer: true,
