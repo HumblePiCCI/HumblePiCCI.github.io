@@ -741,7 +741,7 @@ elements.presetTwo.addEventListener("click", () => isAutomorphism() ? setAutomor
 elements.presetThree.addEventListener("click", () => {
   if (isAutomorphism()) { setAutomorphismVariant("chain"); return; }
   const points = realCriticalTargets(state.d, state.beta, state.gamma);
-  const nearest = points.reduce((best, point) => !best || Math.abs(point.alpha-state.alpha)<Math.abs(best.alpha-state-state.alpha) ? point : best, null);
+  const nearest = points.reduce((best, point) => !best || Math.abs(point.alpha-state.alpha)<Math.abs(best.alpha-state.alpha) ? point : best, null);
   if (nearest) applyTarget({ alpha: nearest.alpha, beta: state.beta, gamma: state.gamma }, "escape");
 });
 elements.animate.addEventListener("click", () => {
