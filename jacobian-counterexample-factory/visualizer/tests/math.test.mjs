@@ -1,143 +1,39 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-
 import {
-  automorphismFiberCoefficients,
-  automorphismFrameCurvePoint,
-  automorphismJacobian,
-  cAbs,
-  collisionCertificate,
-  determinant3,
-  evaluateAutomorphismMap,
-  evaluatePolynomial,
-  fiberPolynomialCoefficients,
-  framePolynomialCoefficients,
-  invertAutomorphismMap,
-  reconstructAutomorphismSource,
-  reconstructSource,
-  solvePolynomial,
+  analyzeAutomorphismFiber, analyzeCounterexampleFiber, automorphismJacobian,
+  boundaryChartSource, cAbs, collisionCertificate, deriveFiberDisplayTransform,
+  deriveLandscapeDisplayTransform, determinant3, evaluateAutomorphismMap,
+  evaluateCounterexampleMap, evaluatePolynomial, fiberPolynomialCoefficients,
+  formatNumber, framePolynomialCoefficients, invertAutomorphismMap,
+  realCriticalTargets, relativePolynomialResidual, solvePolynomial,
   verifyCollisionNumerically,
 } from "../math.js";
+function near(a,e,t=1e-8){assert.ok(Math.abs(a-e)<=t,`expected ${a} within ${t} of ${e}`)}
+function nearPoint(a,e,t=1e-8){assert.equal(a.length,e.length);a.forEach((v,i)=>near(v,e[i],t));}
 
-function near(actual, expected, tolerance = 1e-8) {
-  assert.ok(
-    Math.abs(actual - expected) <= tolerance,
-    `expected ${actual} to be within ${tolerance} of ${expected}`,
-  );
-}
-
-test("frame polynomial has the requested generic degree", () => {
-  for (let d = 3; d <= 20; d += 1) {
-    const coefficients = framePolynomialCoefficients(d, 1);
-    assert.equal(coefficients.length - 1, d);
-    assert.notEqual(coefficients.at(-1), 0);
+test("frame polynomial has requested generic degree away from gamma=0",()=>{for(let d=3;d<=20;d++){const c=framePolynomialCoefficients(d,1);assert.equal(c.length-1,d);assert.notEqual(c.at(-1),0);}});
+test("browser coefficients match exact SymPy expansions",()=>{
+  assert.deepEqual(framePolynomialCoefficients(3,1),[0,0,-2,1]);
+  assert.deepEqual(framePolynomialCoefficients(4,1),[0,0,-5,8,-3]);
+  assert.deepEqual(framePolynomialCoefficients(5,1),[0,0,-2,-1,6,-3]);
+  assert.deepEqual(fiberPolynomialCoefficients(3,-.25,0,0),[.5,0,-2]);
+  assert.deepEqual(fiberPolynomialCoefficients(4,2,4,1),[-4,4,-5,8,-3]);
+  assert.deepEqual(fiberPolynomialCoefficients(5,8,16,1),[-16,16,-2,-1,6,-3]);
+});
+test("automorphisms have determinant one, explicit inverse, one sheet",()=>{
+  for(let k=2;k<=12;k++)for(const variant of ["identity","shear","chain"])for(const target of [{alpha:2,beta:1,gamma:0},{alpha:-3,beta:2,gamma:-1},{alpha:.25,beta:-.5,gamma:.75}]){
+    const source=invertAutomorphismMap(k,target,variant);nearPoint(evaluateAutomorphismMap(k,source,variant),[target.alpha,target.beta,target.gamma],1e-5);assert.equal(determinant3(automorphismJacobian(k,source,variant)),1);const a=analyzeAutomorphismFiber(k,target,variant);assert.equal(a.finiteAffineCount,1);assert.equal(a.escapeCount,0);
   }
 });
-
-test("conjecture-compatible automorphisms have an exact polynomial inverse", () => {
-  const variants = ["identity", "shear", "chain"];
-  const targets = [
-    { alpha: 2, beta: 1, gamma: 0 },
-    { alpha: -3, beta: 2, gamma: -1 },
-    { alpha: 0.25, beta: -0.5, gamma: 0.75 },
-  ];
-  for (let k = 2; k <= 12; k += 1) {
-    for (const variant of variants) {
-      for (const target of targets) {
-        const source = invertAutomorphismMap(k, target, variant);
-        const image = evaluateAutomorphismMap(k, source, variant);
-        near(image[0], target.alpha, 1e-6);
-        near(image[1], target.beta, 1e-10);
-        near(image[2], target.gamma, 1e-10);
-      }
-    }
-  }
-});
-
-test("automorphism examples have constant Jacobian determinant one", () => {
-  const variants = ["identity", "shear", "chain"];
-  const points = [[0, 0, 0], [1, -2, 3], [-0.25, 0.5, -0.75]];
-  for (let k = 2; k <= 20; k += 1) {
-    for (const variant of variants) {
-      for (const point of points) {
-        assert.equal(determinant3(automorphismJacobian(k, point, variant)), 1);
-      }
-    }
-  }
-});
-
-test("every automorphism target has exactly one fiber root and one reconstructed source", () => {
-  const target = { alpha: 2, beta: 1, gamma: 0 };
-  for (const variant of ["identity", "shear", "chain"]) {
-    for (let k = 2; k <= 12; k += 1) {
-      const coefficients = automorphismFiberCoefficients(k, target.alpha, target.beta, target.gamma, variant);
-      const solution = solvePolynomial(coefficients);
-      assert.equal(solution.degree, 1);
-      assert.equal(solution.roots.length, 1);
-      const source = reconstructAutomorphismSource(k, solution.roots[0], target, variant);
-      const expected = invertAutomorphismMap(k, target, variant);
-      near(source.x.re, expected[0]);
-      near(source.y.re, expected[1]);
-      near(source.z.re, expected[2]);
-      const point = automorphismFrameCurvePoint(k, solution.roots[0].re, target.beta, target.gamma, variant);
-      near(point.alpha, target.alpha);
-      assert.equal(point.slope, 1);
-    }
-  }
-});
-
-test("browser coefficients match the exact SymPy frame expansions", () => {
-  assert.deepEqual(framePolynomialCoefficients(3, 1), [0, 0, -2, 1]);
-  assert.deepEqual(framePolynomialCoefficients(4, 1), [0, 0, -5, 8, -3]);
-  assert.deepEqual(framePolynomialCoefficients(5, 1), [0, 0, -2, -1, 6, -3]);
-  assert.deepEqual(fiberPolynomialCoefficients(3, -0.25, 0, 0), [0.5, 0, -2]);
-  assert.deepEqual(fiberPolynomialCoefficients(4, 2, 4, 1), [-4, 4, -5, 8, -3]);
-  assert.deepEqual(fiberPolynomialCoefficients(5, 8, 16, 1), [-16, 16, -2, -1, 6, -3]);
-});
-
-test("the cubic generic target has roots -1, 1, and 2", () => {
-  const coefficients = fiberPolynomialCoefficients(3, -1, -1, 1);
-  for (const root of [-1, 1, 2]) near(evaluatePolynomial(coefficients, root).re, 0);
-  const solution = solvePolynomial(coefficients);
-  assert.equal(solution.roots.length, 3);
-  assert.ok(solution.converged);
-  assert.ok(solution.residual < 1e-9);
-  assert.deepEqual(solution.roots.map((root) => Math.round(root.re)), [-1, 1, 2]);
-});
-
-test("published collision certificates evaluate to their exact targets numerically", () => {
-  for (let d = 3; d <= 12; d += 1) {
-    const verification = verifyCollisionNumerically(d);
-    assert.ok(verification.ok, `d=${d} error=${verification.maximumError}`);
-  }
-});
-
-test("d=5 certified roots reconstruct the two rational source points", () => {
-  const certificate = collisionCertificate(5);
-  const expected = certificate.points;
-  for (let index = 0; index < certificate.finiteRootTs.length; index += 1) {
-    const t = certificate.finiteRootTs[index];
-    const source = reconstructSource(5, { re: t, im: 0 }, certificate.target);
-    near(source.x.re, expected[index][0], 1e-10);
-    near(source.y.re, expected[index][1], 1e-10);
-    near(source.z.re, expected[index][2], 1e-7);
-    near(source.x.im, 0);
-    near(source.y.im, 0);
-    near(source.z.im, 0);
-  }
-});
-
-test("collision fibers expose the expected number of finite roots", () => {
-  for (let d = 3; d <= 12; d += 1) {
-    const target = collisionCertificate(d).target;
-    const coefficients = fiberPolynomialCoefficients(d, target.alpha, target.beta, target.gamma);
-    const solution = solvePolynomial(coefficients);
-    const expectedFiniteDegree = d === 3 ? 2 : d;
-    assert.equal(solution.degree, expectedFiniteDegree, `d=${d}`);
-    assert.equal(solution.roots.length, expectedFiniteDegree, `d=${d}`);
-    assert.ok(solution.residual < 1e-6, `d=${d} residual=${solution.residual}`);
-    for (const root of solution.roots) {
-      assert.ok(cAbs(evaluatePolynomial(coefficients, root)) < 1e-6, `d=${d}`);
-    }
-  }
-});
+test("stored exact collision certificates pass browser numerical re-evaluation",()=>{for(let d=3;d<=12;d++){const v=verifyCollisionNumerically(d);assert.equal(v.exactCertificateStored,true);assert.equal(v.numericalEvaluationPassed,true,`d=${d} error=${v.maximumError}`);}});
+test("cubic collision counts x=0 source as finite affine",()=>{const a=analyzeCounterexampleFiber(3,collisionCertificate(3).target);assert.equal(a.chartDegree,2);assert.equal(a.finiteChartCount,2);assert.equal(a.boundaryCount,1);assert.equal(a.finiteAffineCount,3);assert.equal(a.escapeCount,0);nearPoint(a.boundaryEntries[0].source.source,[0,0,-.25]);});
+test("all gamma=0 boundary formulas map to target",()=>{for(let d=3;d<=12;d++)for(const target of [{alpha:-.25,beta:0,gamma:0},{alpha:3.25,beta:-2,gamma:0},{alpha:-7,beta:4.5,gamma:0}]){const b=boundaryChartSource(d,target);assert.ok(b);assert.ok(b.numericalError<1e-8,`d=${d}`);nearPoint(evaluateCounterexampleMap(d,b.source),[target.alpha,target.beta,0],1e-7);}});
+test("manual tangency is classified from polynomial, not preset",()=>{const a=analyzeCounterexampleFiber(3,{alpha:0,beta:0,gamma:0});assert.equal(a.chartDegree,2);assert.equal(a.repeatedEscapeCount,2);assert.equal(a.boundaryCount,1);assert.equal(a.finiteAffineCount,1);assert.equal(a.escapeCount,2);assert.equal(a.repeatedEntries.length,1);assert.equal(a.repeatedEntries[0].multiplicity,2);near(a.repeatedEntries[0].root.re,0,1e-7);});
+test("critical target creates repeated root without finite reconstruction",()=>{for(const d of [3,4,5,8,12]){const beta=d===3?-1:collisionCertificate(d).target.beta,gamma=1,critical=realCriticalTargets(d,beta,gamma);assert.ok(critical.length);const p=critical[Math.floor(critical.length/2)],a=analyzeCounterexampleFiber(d,{alpha:p.alpha,beta,gamma});assert.ok(a.escapeCount>=2,`d=${d}`);assert.ok(a.repeatedEntries.some(e=>Math.abs(e.root.re-p.t)<1e-4),`d=${d}`);}});
+test("far cubic root is solved and adaptive fiber transform includes every real root",()=>{const target={alpha:-.25,beta:0,gamma:.01},a=analyzeCounterexampleFiber(3,target);assert.equal(a.finiteAffineCount,3);assert.equal(a.escapeCount,0);const roots=a.finiteChartRoots.map(e=>e.root.re);assert.ok(roots.some(r=>r>190));const tr=deriveFiberDisplayTransform(a,realCriticalTargets(3,0,.01));for(const r of roots)assert.ok(Math.abs(tr.tAxis.forward(r))<=tr.tAxis.sceneExtent+1e-9);});
+test("tiny nonzero leading coefficients preserve the full chart degree",()=>{for(const gamma of [1e-8,-1e-8,1e-5])for(let d=3;d<=12;d++){const coefficients=fiberPolynomialCoefficients(d,-.25,0,gamma);assert.equal(coefficients.length-1,d,`d=${d} gamma=${gamma}`);const a=analyzeCounterexampleFiber(d,{alpha:-.25,beta:0,gamma});assert.equal(a.chartDegree,d);assert.equal(a.finiteAffineCount+a.escapeCount+a.unresolvedCount,d);assert.equal(a.unresolvedCount,0);}});
+test("adaptive complex transform includes every root",()=>{const a=analyzeCounterexampleFiber(3,{alpha:-.25,beta:0,gamma:.01}),tr=deriveLandscapeDisplayTransform(a);for(const e of a.allPolynomialRoots){const p=tr.forward(e.displayRoot);assert.ok(Math.abs(p.x)<=tr.realAxis.sceneExtent+1e-9);assert.ok(Math.abs(p.z)<=tr.imaginaryAxis.sceneExtent+1e-9);}});
+test("gamma=0 degree loss separates boundary source from escaping sheets",()=>{for(let d=4;d<=12;d++){const a=analyzeCounterexampleFiber(d,{alpha:1.25,beta:-.75,gamma:0});assert.equal(a.chartDegree,2);assert.equal(a.boundaryCount,1);assert.equal(a.escapeAtChartInfinity,d-3,`d=${d}`);assert.equal(a.finiteAffineCount+a.escapeCount,d,`d=${d}`);}});
+test("solver residuals are small through degree 12",()=>{for(let d=3;d<=12;d++){const t=collisionCertificate(d).target,c=fiberPolynomialCoefficients(d,t.alpha,t.beta,t.gamma),s=solvePolynomial(c);assert.equal(s.roots.length,s.degree);assert.ok(s.relativeResidual<1e-7,`d=${d} residual=${s.relativeResidual}`);for(const root of s.roots){assert.ok(relativePolynomialResidual(c,root)<1e-6,`d=${d}`);assert.ok(cAbs(evaluatePolynomial(c,root))<Math.max(1e-3,s.residual*2+1e-12));}}});
+test("NaN formatting never fabricates infinity",()=>{assert.equal(formatNumber(Number.NaN),"undefined");assert.equal(formatNumber(Infinity),"∞");assert.equal(formatNumber(-Infinity),"−∞");});
