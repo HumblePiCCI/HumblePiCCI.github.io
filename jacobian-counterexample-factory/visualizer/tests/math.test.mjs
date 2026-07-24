@@ -8,7 +8,7 @@ import {
   formatNumber, framePolynomialCoefficients, invertAutomorphismMap,
   realCriticalTargets, relativePolynomialResidual, solvePolynomial,
   verifyCollisionNumerically,
-} from "../math.js";
+} from "../math.module.mjs";
 function near(a,e,t=1e-8){assert.ok(Math.abs(a-e)<=t,`expected ${a} within ${t} of ${e}`)}
 function nearPoint(a,e,t=1e-8){assert.equal(a.length,e.length);a.forEach((v,i)=>near(v,e[i],t));}
 

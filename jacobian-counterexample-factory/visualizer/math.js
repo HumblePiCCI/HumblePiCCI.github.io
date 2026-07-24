@@ -1,20 +1,23 @@
+(function installJacobianMath(root) {
+"use strict";
+
 const DEFAULT_TOLERANCE = 1e-12;
 const MULTIPLE_ROOT_TOLERANCE = 2e-9;
 const NEAR_MULTIPLE_TOLERANCE = 2e-5;
 
-export function complex(re = 0, im = 0) { return { re, im }; }
-export function isFiniteComplex(v) { return Number.isFinite(v?.re) && Number.isFinite(v?.im); }
-export function cAdd(a, b) { return complex(a.re + b.re, a.im + b.im); }
-export function cSub(a, b) { return complex(a.re - b.re, a.im - b.im); }
-export function cScale(a, s) { return complex(a.re * s, a.im * s); }
-export function cMul(a, b) { return complex(a.re*b.re-a.im*b.im, a.re*b.im+a.im*b.re); }
-export function cDiv(a, b) {
+function complex(re = 0, im = 0) { return { re, im }; }
+function isFiniteComplex(v) { return Number.isFinite(v?.re) && Number.isFinite(v?.im); }
+function cAdd(a, b) { return complex(a.re + b.re, a.im + b.im); }
+function cSub(a, b) { return complex(a.re - b.re, a.im - b.im); }
+function cScale(a, s) { return complex(a.re * s, a.im * s); }
+function cMul(a, b) { return complex(a.re*b.re-a.im*b.im, a.re*b.im+a.im*b.re); }
+function cDiv(a, b) {
   const q = b.re*b.re + b.im*b.im;
   if (!Number.isFinite(q) || q === 0) return complex(Number.NaN, Number.NaN);
   return complex((a.re*b.re+a.im*b.im)/q, (a.im*b.re-a.re*b.im)/q);
 }
-export function cAbs(a) { return Math.hypot(a.re, a.im); }
-export function cPow(a, n) {
+function cAbs(a) { return Math.hypot(a.re, a.im); }
+function cPow(a, n) {
   if (!Number.isInteger(n) || n < 0) throw new RangeError("exponent must be a nonnegative integer");
   let out = complex(1,0), base = a, p = n;
   while (p > 0) { if (p % 2) out = cMul(out, base); base = cMul(base, base); p = Math.floor(p/2); }
@@ -27,7 +30,7 @@ function polyMultiply(a,b){ const r=Array(a.length+b.length-1).fill(0); for(let 
 function polyPower(a,n){ let r=[1],b=a,p=n; while(p>0){if(p%2)r=polyMultiply(r,b);b=polyMultiply(b,b);p=Math.floor(p/2);}return r; }
 function shiftPolynomial(a,n){ return [...Array(n).fill(0),...a]; }
 
-export function trimPolynomial(polynomial) {
+function trimPolynomial(polynomial) {
   const result = [...polynomial];
   // A tiny leading coefficient is still mathematically meaningful: when gamma
   // is close to zero, it represents a genuine root very far out in the T-chart.
@@ -35,25 +38,25 @@ export function trimPolynomial(polynomial) {
   while (result.length > 1 && result.at(-1) === 0) result.pop();
   return result;
 }
-export function derivativeCoefficients(c){ return c.length<=1?[0]:c.slice(1).map((v,i)=>v*(i+1)); }
-export function evaluatePolynomial(c,value){
+function derivativeCoefficients(c){ return c.length<=1?[0]:c.slice(1).map((v,i)=>v*(i+1)); }
+function evaluatePolynomial(c,value){
   const z=typeof value==="number"?complex(value,0):value; let r=complex(0,0);
   for(let i=c.length-1;i>=0;i--)r=cAdd(cMul(r,z),complex(c[i],0)); return r;
 }
-export function polynomialEvaluationScale(c,value){
+function polynomialEvaluationScale(c,value){
   const radius=typeof value==="number"?Math.abs(value):cAbs(value); let s=0;
   for(let i=c.length-1;i>=0;i--)s=s*radius+Math.abs(c[i]); return Math.max(s,Number.MIN_VALUE);
 }
-export function relativePolynomialResidual(c,value){ return cAbs(evaluatePolynomial(c,value))/polynomialEvaluationScale(c,value); }
+function relativePolynomialResidual(c,value){ return cAbs(evaluatePolynomial(c,value))/polynomialEvaluationScale(c,value); }
 
-export function framePolynomialCoefficients(d,gamma){
+function framePolynomialCoefficients(d,gamma){
   if(!Number.isInteger(d)||d<3)throw new RangeError("d must be an integer at least 3");
   if(!Number.isFinite(gamma))throw new TypeError("gamma must be finite");
   if(d===3)return [0,0,-2,gamma];
   const v=[-1,gamma]; let g=polyAdd(polyScale(v,2),polyScale(polyPower(v,2),-3));
   if(d>=5)g=polyAdd(g,polyScale(polyPower(v,d-2),-3)); return trimPolynomial(shiftPolynomial(g,2));
 }
-export function fiberPolynomialCoefficients(d,alpha,beta,gamma){
+function fiberPolynomialCoefficients(d,alpha,beta,gamma){
   const c=[...framePolynomialCoefficients(d,gamma)]; c[0]=(c[0]??0)-2*alpha; c[1]=(c[1]??0)+beta; return trimPolynomial(c);
 }
 
@@ -94,7 +97,7 @@ function solveWithScale(polynomial,variableScale,options={}){
   return {roots,degree:n,iterations:Math.min(iterations,maxIterations),converged:converged||relativeResidual<5e-9,residual,relativeResidual,variableScale};
 }
 
-export function solvePolynomial(coefficients,options={}){
+function solvePolynomial(coefficients,options={}){
   const tolerance=options.tolerance??2e-13,p=trimPolynomial(coefficients),n=p.length-1;
   if(n<1)return {roots:[],degree:n,iterations:0,converged:true,residual:0,relativeResidual:0,variableScale:1};
   if(n===1){const root=complex(-p[0]/p[1],0);return {roots:[root],degree:1,iterations:1,converged:true,residual:0,relativeResidual:0,variableScale:1};}
@@ -111,20 +114,20 @@ export function solvePolynomial(coefficients,options={}){
 function distanceRelative(a,b){return cAbs(cSub(a,b))/Math.max(1,cAbs(a),cAbs(b));}
 function uniqueComplex(values,tolerance=2e-7){const out=[];for(const v of values)if(!out.some(w=>distanceRelative(v,w)<tolerance))out.push(v);return out;}
 function estimateMultiplicity(c,root){let d=c,m=0;for(let order=0;order<c.length;order++){if(relativePolynomialResidual(d,root)>2e-6)break;m++;d=derivativeCoefficients(d);if(d.length===1&&d[0]===0)break;}return Math.max(2,m);}
-export function detectMultipleRoots(coefficients){
+function detectMultipleRoots(coefficients){
   const p=trimPolynomial(coefficients);if(p.length<=2)return[];const critical=solvePolynomial(derivativeCoefficients(p)),out=[];
   for(const root of critical.roots){const residual=relativePolynomialResidual(p,root);if(residual<=NEAR_MULTIPLE_TOLERANCE)out.push({root,residual,exactWithinNumerics:residual<=MULTIPLE_ROOT_TOLERANCE,multiplicity:residual<=MULTIPLE_ROOT_TOLERANCE?Math.min(p.length-1,estimateMultiplicity(p,root)):1});}
   const unique=[];for(const item of out.sort((a,b)=>a.residual-b.residual)){if(!unique.some(v=>distanceRelative(v.root,item.root)<3e-6))unique.push(item);}return unique;
 }
 
-export function reconstructSource(d,root,target){
+function reconstructSource(d,root,target){
   const coefficients=fiberPolynomialCoefficients(d,target.alpha,target.beta,target.gamma),slope=evaluatePolynomial(derivativeCoefficients(coefficients),root);
   if(!isFiniteComplex(slope)||cAbs(slope)===0)return{status:"non-affine",root,slope,x:null,y:null,z:null};
   const x=cDiv(complex(2,0),slope),y=cSub(root,cScale(slope,.5)),w=d===3?cSub(cScale(x,2),cScale(cMul(cMul(x,x),y),3)):x,z=cDiv(cSub(w,complex(target.gamma,0)),cPow(x,3));
   if(![x,y,z].every(isFiniteComplex))return{status:"numerically-undefined",root,slope,x,y,z}; return{status:"finite-chart",root,slope,x,y,z};
 }
 
-export function boundaryChartSource(d,target){
+function boundaryChartSource(d,target){
   if(target.gamma!==0)return null;let source;
   if(d===3)source=[0,target.beta,target.alpha-4*target.beta**2];
   else if(d===5)source=[0,-target.beta/2,2.5*target.beta**2-target.alpha];
@@ -134,18 +137,18 @@ export function boundaryChartSource(d,target){
   return{status:targetMatched?"finite-boundary-chart":"numerically-unresolved-boundary",source,image,numericalError:error,targetMatched,chart:"x = 0"};
 }
 
-export function frameCurvePoint(d,t,beta,gamma){
+function frameCurvePoint(d,t,beta,gamma){
   const h=framePolynomialCoefficients(d,gamma),dh=derivativeCoefficients(h),hValue=evaluatePolynomial(h,t).re,slope=evaluatePolynomial(dh,t).re+beta;
   return{t,alpha:(hValue+beta*t)/2,slope,x:slope===0?Number.NaN:2/slope};
 }
-export function realCriticalTargets(d,beta,gamma){
+function realCriticalTargets(d,beta,gamma){
   const h=framePolynomialCoefficients(d,gamma),dh=derivativeCoefficients(h);dh[0]=(dh[0]??0)+beta;
   return uniqueComplex(solvePolynomial(dh).roots).filter(r=>Math.abs(r.im)<1e-7).map(r=>frameCurvePoint(d,r.re,beta,gamma)).filter(p=>Number.isFinite(p.alpha)).sort((a,b)=>a.alpha-b.alpha);
 }
 function removeAssignedRoots(roots,repeated){const available=roots.map((root,index)=>({root,index,assigned:false}));for(const rep of repeated){if(!rep.exactWithinNumerics)continue;const closest=available.filter(e=>!e.assigned).map(e=>({...e,distance:distanceRelative(e.root,rep.root)})).sort((a,b)=>a.distance-b.distance).slice(0,rep.multiplicity);for(const e of closest)available[e.index].assigned=true;}return available.filter(e=>!e.assigned).map(e=>e.root);}
 function clusterSimpleRoots(roots){const clusters=[];for(const root of roots){let c=clusters.find(v=>distanceRelative(v.root,root)<2e-7);if(!c){clusters.push({root,members:[root]});continue;}c.members.push(root);c.root=complex(c.members.reduce((s,v)=>s+v.re,0)/c.members.length,c.members.reduce((s,v)=>s+v.im,0)/c.members.length);}return clusters;}
 
-export function analyzeCounterexampleFiber(d,target){
+function analyzeCounterexampleFiber(d,target){
   const coefficients=fiberPolynomialCoefficients(d,target.alpha,target.beta,target.gamma),derivative=derivativeCoefficients(coefficients),solution=solvePolynomial(coefficients),candidates=detectMultipleRoots(coefficients),repeated=candidates.filter(v=>v.exactWithinNumerics),nearMultipleRoots=candidates.filter(v=>!v.exactWithinNumerics),clusters=clusterSimpleRoots(removeAssignedRoots(solution.roots,repeated));
   const finiteChartRoots=clusters.map((cluster,index)=>{const root=cluster.root,source=reconstructSource(d,root,target),residual=relativePolynomialResidual(coefficients,root),slopeMagnitude=source.slope?cAbs(source.slope):0;return{id:`chart-${index}`,kind:source.status==="finite-chart"?"finite-chart":"unresolved",root,multiplicity:cluster.members.length,residual,slopeMagnitude,nearEscape:source.status==="finite-chart"&&(slopeMagnitude<1e-5||cAbs(source.x)>1e6),source};});
   const repeatedEntries=repeated.map((v,i)=>({id:`escape-${i}`,kind:"escape-repeated-root",root:v.root,multiplicity:v.multiplicity,residual:v.residual,source:null}));
@@ -159,38 +162,81 @@ export function analyzeCounterexampleFiber(d,target){
 const AUTOMORPHISM_VARIANTS=new Set(["identity","shear","chain"]);
 function assertAutomorphismInputs(k,variant){if(!Number.isInteger(k)||k<2)throw new RangeError("k must be an integer at least 2");if(!AUTOMORPHISM_VARIANTS.has(variant))throw new RangeError(`unknown automorphism variant: ${variant}`);}
 function automorphismY(k,beta,gamma,variant){return variant==="chain"?beta-gamma**k:beta;}
-export function automorphismOffset(k,beta,gamma,variant="chain"){assertAutomorphismInputs(k,variant);if(variant==="identity")return 0;return automorphismY(k,beta,gamma,variant)**k;}
-export function automorphismFiberCoefficients(k,alpha,beta,gamma,variant="chain"){return[automorphismOffset(k,beta,gamma,variant)-alpha,1];}
-export function evaluateAutomorphismMap(k,point,variant="chain"){assertAutomorphismInputs(k,variant);const[x,y,z]=point;if(variant==="identity")return[x,y,z];if(variant==="shear")return[x+y**k,y,z];return[x+y**k,y+z**k,z];}
-export function invertAutomorphismMap(k,target,variant="chain"){assertAutomorphismInputs(k,variant);const{alpha,beta,gamma}=target;if(variant==="identity")return[alpha,beta,gamma];const y=automorphismY(k,beta,gamma,variant);return[alpha-y**k,y,gamma];}
-export function automorphismJacobian(k,point,variant="chain"){assertAutomorphismInputs(k,variant);const[,y,z]=point;if(variant==="identity")return[[1,0,0],[0,1,0],[0,0,1]];const a=k*y**(k-1);if(variant==="shear")return[[1,a,0],[0,1,0],[0,0,1]];return[[1,a,0],[0,1,k*z**(k-1)],[0,0,1]];}
-export function determinant3(m){const[a,b,c]=m;return a[0]*(b[1]*c[2]-b[2]*c[1])-a[1]*(b[0]*c[2]-b[2]*c[0])+a[2]*(b[0]*c[1]-b[1]*c[0]);}
-export function analyzeAutomorphismFiber(k,target,variant="chain"){
+function automorphismOffset(k,beta,gamma,variant="chain"){assertAutomorphismInputs(k,variant);if(variant==="identity")return 0;return automorphismY(k,beta,gamma,variant)**k;}
+function automorphismFiberCoefficients(k,alpha,beta,gamma,variant="chain"){return[automorphismOffset(k,beta,gamma,variant)-alpha,1];}
+function evaluateAutomorphismMap(k,point,variant="chain"){assertAutomorphismInputs(k,variant);const[x,y,z]=point;if(variant==="identity")return[x,y,z];if(variant==="shear")return[x+y**k,y,z];return[x+y**k,y+z**k,z];}
+function invertAutomorphismMap(k,target,variant="chain"){assertAutomorphismInputs(k,variant);const{alpha,beta,gamma}=target;if(variant==="identity")return[alpha,beta,gamma];const y=automorphismY(k,beta,gamma,variant);return[alpha-y**k,y,gamma];}
+function automorphismJacobian(k,point,variant="chain"){assertAutomorphismInputs(k,variant);const[,y,z]=point;if(variant==="identity")return[[1,0,0],[0,1,0],[0,0,1]];const a=k*y**(k-1);if(variant==="shear")return[[1,a,0],[0,1,0],[0,0,1]];return[[1,a,0],[0,1,k*z**(k-1)],[0,0,1]];}
+function determinant3(m){const[a,b,c]=m;return a[0]*(b[1]*c[2]-b[2]*c[1])-a[1]*(b[0]*c[2]-b[2]*c[0])+a[2]*(b[0]*c[1]-b[1]*c[0]);}
+function analyzeAutomorphismFiber(k,target,variant="chain"){
   const coefficients=automorphismFiberCoefficients(k,target.alpha,target.beta,target.gamma,variant),root=complex(-coefficients[0],0),tuple=invertAutomorphismMap(k,target,variant),source={status:"finite-chart",root,slope:complex(1,0),x:complex(tuple[0],0),y:complex(tuple[1],0),z:complex(tuple[2],0)},entry={id:"automorphism-0",kind:"finite-chart",root,multiplicity:1,residual:0,slopeMagnitude:1,nearEscape:false,source};
   return{family:"automorphism",d:k,target:{...target},variant,coefficients,derivative:[1],solution:{roots:[root],degree:1,iterations:1,converged:true,residual:0,relativeResidual:0,variableScale:1},chartDegree:1,genericDegree:1,chartDegreeLoss:0,finiteChartRoots:[entry],boundaryEntries:[],repeatedEntries:[],infinityEntries:[],nearMultipleRoots:[],allPolynomialRoots:[{...entry,displayRoot:root}],sheets:[entry],finiteChartCount:1,boundaryCount:0,finiteAffineCount:1,repeatedEscapeCount:0,escapeAtChartInfinity:0,escapeCount:0,unresolvedCount:0,accountedSheets:1,sheetAccountingValid:true,maximumRelativeResidual:0};
 }
 
-export function collisionCertificate(d){
+function collisionCertificate(d){
   if(!Number.isInteger(d)||d<3)throw new RangeError("d must be an integer at least 3");
   if(d===3)return{exact:true,target:{alpha:-.25,beta:0,gamma:0},points:[[0,0,-.25],[1,-1.5,6.5],[-1,1.5,6.5]],finiteRootTs:[-.5,.5],boundaryPointIndices:[0]};
   if(d===4)return{exact:true,target:{alpha:2,beta:4,gamma:1},points:[[1/3,-2,-18],[-1/8,10,576]],finiteRootTs:[1,2],boundaryPointIndices:[]};
   const m=6*d-4;return{exact:true,target:{alpha:8,beta:16,gamma:1},points:[[1/9,-8,-648],[-1/m,6*d-2,m*m*(6*d-3)]],finiteRootTs:[1,2],boundaryPointIndices:[]};
 }
-export function evaluateCounterexampleMap(d,point){
+function evaluateCounterexampleMap(d,point){
   const[x,y,z]=point,q=1+x*y;if(d===3)return[q**3*z+y**2*q*(4+3*x*y),y+3*x*q**2*z+3*x*y**2*(4+3*x*y),2*x-3*x**2*y-x**3*z];
   const D=y-x*z-x**2*y*z,s=x*D,c=x-x**3*z;if(d===4)return[q*(y**2-q**2*z)+4.5*q**2*D**2,-2*y+12*x*q*D**2,c];
   return[q*(y**2-q**2*z)+1.5*q**2*D**2*(3+(d-2)*s**(d-5)+(d-1)*s**(d-4)),-2*y+3*x*q*D**2*(4+(d-2)*s**(d-5)+d*s**(d-4)),c];
 }
-export function verifyCollisionNumerically(d){const certificate=collisionCertificate(d),expected=[certificate.target.alpha,certificate.target.beta,certificate.target.gamma];let maximumError=0;for(const point of certificate.points){const image=evaluateCounterexampleMap(d,point);for(let i=0;i<3;i++)maximumError=Math.max(maximumError,Math.abs(image[i]-expected[i]));}return{exactCertificateStored:certificate.exact,numericalEvaluationPassed:maximumError<1e-7,maximumError,certificate};}
-export function threeRealPreset(d){if(d===3)return{alpha:-1,beta:-1,gamma:1};const c=collisionCertificate(d).target;return{...c,alpha:c.alpha-.65};}
+function verifyCollisionNumerically(d){const certificate=collisionCertificate(d),expected=[certificate.target.alpha,certificate.target.beta,certificate.target.gamma];let maximumError=0;for(const point of certificate.points){const image=evaluateCounterexampleMap(d,point);for(let i=0;i<3;i++)maximumError=Math.max(maximumError,Math.abs(image[i]-expected[i]));}return{exactCertificateStored:certificate.exact,numericalEvaluationPassed:maximumError<1e-7,maximumError,certificate};}
+function threeRealPreset(d){if(d===3)return{alpha:-1,beta:-1,gamma:1};const c=collisionCertificate(d).target;return{...c,alpha:c.alpha-.65};}
 
 function median(values){if(!values.length)return 0;const s=[...values].sort((a,b)=>a-b),m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;}
 function quantile(values,q){if(!values.length)return 0;const s=[...values].sort((a,b)=>a-b),p=(s.length-1)*q,l=Math.floor(p),u=Math.ceil(p);return l===u?s[l]:s[l]*(u-p)+s[u]*(p-l);}
-export function deriveAsinhAxisTransform(values,options={}){
+function deriveAsinhAxisTransform(values,options={}){
   const finite=values.filter(Number.isFinite),center=options.center??median(finite),dist=finite.map(v=>Math.abs(v-center)).filter(v=>v>1e-10),natural=dist.length?quantile(dist,.35):1,scale=options.scale??Math.min(2.5,Math.max(.35,natural)),raw=finite.map(v=>Math.asinh((v-center)/scale)),rawExtent=raw.length?Math.max(...raw.map(Math.abs)):0,extent=options.extent??Math.max(2.8,rawExtent+.6),sceneExtent=options.sceneExtent??5;
   return{kind:"asinh",center,scale,extent,sceneExtent,forward:v=>Math.asinh((v-center)/scale)/extent*sceneExtent,inverse:u=>center+scale*Math.sinh(u/sceneExtent*extent),normalized:v=>Math.asinh((v-center)/scale)};
 }
-export function deriveFiberDisplayTransform(analysis,criticalPoints=[]){const realRoots=analysis.allPolynomialRoots.map(v=>v.displayRoot).filter(r=>r&&Math.abs(r.im)<1e-7).map(r=>r.re),critical=criticalPoints.filter(p=>Number.isFinite(p.t)).map(p=>p.t),features=[...realRoots,...critical];if(!features.length)features.push(0);const tAxis=deriveAsinhAxisTransform(features,{sceneExtent:5.1});return{tAxis,label:`u = asinh((T − ${formatNumber(tAxis.center,3)}) / ${formatNumber(tAxis.scale,3)})`};}
-export function deriveLandscapeDisplayTransform(analysis){const roots=analysis.allPolynomialRoots.map(v=>v.displayRoot).filter(isFiniteComplex),re=roots.map(r=>r.re),im=roots.map(r=>r.im);if(!re.length)re.push(0);if(!im.length)im.push(0);const realAxis=deriveAsinhAxisTransform(re,{sceneExtent:4.8}),imaginaryAxis=deriveAsinhAxisTransform(im,{sceneExtent:4.8,center:0});return{realAxis,imaginaryAxis,label:`u = asinh((Re T − ${formatNumber(realAxis.center,3)}) / ${formatNumber(realAxis.scale,3)}), v = asinh((Im T − ${formatNumber(imaginaryAxis.center,3)}) / ${formatNumber(imaginaryAxis.scale,3)})`,forward:root=>({x:realAxis.forward(root.re),z:imaginaryAxis.forward(root.im)}),inverse:(x,z)=>complex(realAxis.inverse(x),imaginaryAxis.inverse(z))};}
-export function formatNumber(value,precision=4){if(Number.isNaN(value))return"undefined";if(value===Infinity)return"∞";if(value===-Infinity)return"−∞";if(!Number.isFinite(value))return"undefined";if(Math.abs(value)<1e-12)return"0";const m=Math.abs(value);if(m>=1e5||m<1e-3)return value.toExponential(2).replace("e-","e−");return Number(value.toFixed(precision)).toString().replace("-","−");}
-export function formatComplex(value,precision=4){if(!value||Number.isNaN(value.re)||Number.isNaN(value.im))return"undefined";if(!isFiniteComplex(value))return"non-finite";const re=Math.abs(value.re)<1e-9?0:value.re,im=Math.abs(value.im)<1e-9?0:value.im;if(im===0)return formatNumber(re,precision);if(re===0)return`${formatNumber(im,precision)}i`;return`${formatNumber(re,precision)} ${im>=0?"+":"−"} ${formatNumber(Math.abs(im),precision)}i`;}
+function deriveFiberDisplayTransform(analysis,criticalPoints=[]){const realRoots=analysis.allPolynomialRoots.map(v=>v.displayRoot).filter(r=>r&&Math.abs(r.im)<1e-7).map(r=>r.re),critical=criticalPoints.filter(p=>Number.isFinite(p.t)).map(p=>p.t),features=[...realRoots,...critical];if(!features.length)features.push(0);const tAxis=deriveAsinhAxisTransform(features,{sceneExtent:5.1});return{tAxis,label:`u = asinh((T − ${formatNumber(tAxis.center,3)}) / ${formatNumber(tAxis.scale,3)})`};}
+function deriveLandscapeDisplayTransform(analysis){const roots=analysis.allPolynomialRoots.map(v=>v.displayRoot).filter(isFiniteComplex),re=roots.map(r=>r.re),im=roots.map(r=>r.im);if(!re.length)re.push(0);if(!im.length)im.push(0);const realAxis=deriveAsinhAxisTransform(re,{sceneExtent:4.8}),imaginaryAxis=deriveAsinhAxisTransform(im,{sceneExtent:4.8,center:0});return{realAxis,imaginaryAxis,label:`u = asinh((Re T − ${formatNumber(realAxis.center,3)}) / ${formatNumber(realAxis.scale,3)}), v = asinh((Im T − ${formatNumber(imaginaryAxis.center,3)}) / ${formatNumber(imaginaryAxis.scale,3)})`,forward:root=>({x:realAxis.forward(root.re),z:imaginaryAxis.forward(root.im)}),inverse:(x,z)=>complex(realAxis.inverse(x),imaginaryAxis.inverse(z))};}
+function formatNumber(value,precision=4){if(Number.isNaN(value))return"undefined";if(value===Infinity)return"∞";if(value===-Infinity)return"−∞";if(!Number.isFinite(value))return"undefined";if(Math.abs(value)<1e-12)return"0";const m=Math.abs(value);if(m>=1e5||m<1e-3)return value.toExponential(2).replace("e-","e−");return Number(value.toFixed(precision)).toString().replace("-","−");}
+function formatComplex(value,precision=4){if(!value||Number.isNaN(value.re)||Number.isNaN(value.im))return"undefined";if(!isFiniteComplex(value))return"non-finite";const re=Math.abs(value.re)<1e-9?0:value.re,im=Math.abs(value.im)<1e-9?0:value.im;if(im===0)return formatNumber(re,precision);if(re===0)return`${formatNumber(im,precision)}i`;return`${formatNumber(re,precision)} ${im>=0?"+":"−"} ${formatNumber(Math.abs(im),precision)}i`;}
+
+root.JacobianMath = Object.freeze({
+  analyzeAutomorphismFiber,
+  analyzeCounterexampleFiber,
+  automorphismFiberCoefficients,
+  automorphismJacobian,
+  automorphismOffset,
+  boundaryChartSource,
+  cAbs,
+  cAdd,
+  cDiv,
+  cMul,
+  cPow,
+  cScale,
+  cSub,
+  collisionCertificate,
+  complex,
+  derivativeCoefficients,
+  deriveAsinhAxisTransform,
+  deriveFiberDisplayTransform,
+  deriveLandscapeDisplayTransform,
+  determinant3,
+  detectMultipleRoots,
+  evaluateAutomorphismMap,
+  evaluateCounterexampleMap,
+  evaluatePolynomial,
+  fiberPolynomialCoefficients,
+  formatComplex,
+  formatNumber,
+  frameCurvePoint,
+  framePolynomialCoefficients,
+  invertAutomorphismMap,
+  isFiniteComplex,
+  polynomialEvaluationScale,
+  realCriticalTargets,
+  reconstructSource,
+  relativePolynomialResidual,
+  solvePolynomial,
+  threeRealPreset,
+  trimPolynomial,
+  verifyCollisionNumerically,
+});
+})(globalThis);

@@ -39,9 +39,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Check browser modules
+      - name: Check browser scripts
         run: |
           node --check jacobian-counterexample-factory/visualizer/math.js
+          node --check jacobian-counterexample-factory/visualizer/math.module.mjs
           node --check jacobian-counterexample-factory/visualizer/app.js
       - name: Test visualizer mathematics
         run: node --test jacobian-counterexample-factory/visualizer/tests/math.test.mjs
