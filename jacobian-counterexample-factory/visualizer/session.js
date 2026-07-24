@@ -47,14 +47,14 @@ function markAnimationStopped() {
   syncAnimationControl(false);
 }
 
-function syncAnimationFromControl() {
+function syncAnimationFromControl({ captureCenter = false } = {}) {
   const active = animateButton?.getAttribute("aria-pressed") === "true";
   state.animationActive = active;
-  if (active) state.animationCenter = original.snapshot().state.alpha;
+  if (active && captureCenter) state.animationCenter = original.snapshot().state.alpha;
   syncAnimationControl(active);
 }
 
-animateButton?.addEventListener("click", syncAnimationFromControl);
+animateButton?.addEventListener("click", () => syncAnimationFromControl({ captureCenter: true }));
 
 function stopAnimation() {
   if (state.animationActive) animateButton?.click();
@@ -204,7 +204,9 @@ for (const button of $$("button[data-family]")) {
   });
 }
 for (const button of [$("#preset-one"), $("#preset-two")]) button?.addEventListener("click", markAnimationStopped);
-$("#preset-three")?.addEventListener("click", syncAnimationFromControl);
+$("#preset-three")?.addEventListener("click", () => {
+  original.snapshot().state.family === "automorphism" ? markAnimationStopped() : syncAnimationFromControl();
+});
 for (const control of [$("#alpha"), $("#beta"), $("#gamma")]) control?.addEventListener("input", syncAnimationFromControl);
 for (const control of [$("#alpha-number"), $("#beta-number"), $("#gamma-number")]) {
   control?.addEventListener("change", syncAnimationFromControl);
