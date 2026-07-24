@@ -4,10 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#050712">
-    <meta name="description" content="An immersive, mathematically faithful atlas of Jacobian fibers, affine chart boundaries, and sheets escaping through infinity.">
+    <meta name="description" content="An immersive, guided introduction to the Jacobian conjecture, exact counterexamples, affine fibers, and sheets escaping through infinity.">
     <title>Jacobian Fiber Lab</title>
     <link rel="icon" href="./favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="./visualizer.css">
+    <link rel="stylesheet" href="./tour.css">
   </head>
   <body data-family="counterexample">
     <a class="skip-link" href="#controls">Skip to controls</a>
@@ -20,6 +21,7 @@
         </a>
         <div class="topbar-status">
           <span class="status-pulse"><i></i> exact model · numerical renderer</span>
+          <button id="tour-topbar" class="tour-topbar" type="button" aria-pressed="false">guided tour</button>
           <a href="https://github.com/HumblePiCCI/HumblePiCCI.github.io/tree/main/jacobian-counterexample-factory" target="_blank" rel="noreferrer">source ↗</a>
         </div>
       </header>
@@ -161,5 +163,8 @@
     <noscript>This explorer requires JavaScript.</noscript>
     <script src="./math.js"></script>
     <script src="./app.js"></script>
+    <script src="./session.js"></script>
+    <script src="./tour-content.js"></script>
+    <script src="./tour.js"></script>
   </body>
 </html>

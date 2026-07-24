@@ -36,6 +36,38 @@ Open:
 http://localhost:8000/visualizer/
 ```
 
+## Guided interactive tour
+
+The **guided tour** is the recommended entry point for visitors who do not
+already know the Jacobian conjecture. Open it from the top bar, the floating
+`∂` guide, the `?` keyboard shortcut, or a shareable URL ending in `?tour=1`.
+
+The tour is a separate, file-compatible presentation layer. It moves the live
+lab through a carefully ordered teaching sequence while keeping the underlying
+mathematics and renderer unchanged:
+
+1. the Jacobian determinant and the local inverse guarantee;
+2. the conjecture's proposed local-to-global implication;
+3. an invertible triangular-shear control case;
+4. the constant-Jacobian counterexample chamber;
+5. the exact three-source cubic collision;
+6. the one-variable fiber polynomial and reconstruction formula;
+7. the finite `x = 0` source in the second affine chart;
+8. repeated roots and sheets escaping through infinity;
+9. the complex root landscape; and
+10. why exact local invertibility plus global overlap is so remarkable.
+
+Each step spotlights the relevant control, changes the live mathematical state,
+and presents plain-language context alongside the key formula. The tour includes
+an intuition check, a source-cycling interaction, keyboard navigation, mobile
+bottom-sheet layout, progress persistence when storage is available, and full
+state restoration when a visitor exits early. Finishing leaves the lab at the
+exact cubic collision for free exploration.
+
+The tour exports a small test API as `window.__JACOBIAN_TOUR__`. It remains
+compatible with direct `file://` launch because `tour.js` is an ordered classic
+script loaded after the existing math and application runtimes.
+
 ## What is represented
 
 ### Fiber atlas
@@ -113,6 +145,9 @@ preimages: two simple roots on `x != 0` and the finite point
 
 ## Interaction
 
+- start the guided tour from the top bar, floating `∂`, `?`, `?tour=1`, or
+  `#tour`;
+- use Left/Right or Page Up/Page Down to navigate the tour and Escape to exit;
 - drag to rotate;
 - Shift-drag or right-drag to pan;
 - wheel to zoom;
@@ -132,7 +167,7 @@ Pure mathematics:
 node --test visualizer/tests/math.test.mjs
 ```
 
-Maintained Playwright desktop/mobile suite:
+Maintained Playwright desktop/mobile suite, including the guided tour:
 
 ```bash
 cd visualizer
@@ -152,7 +187,8 @@ JACOBIAN_LAB_URL=http://127.0.0.1:8765/visualizer/ \
 ```
 
 The browser suite exercises direct `file://` launch, desktop and mobile
-layouts, both chambers and both scene modes, a far-off cubic root, the cubic
-`x = 0` source, tiny nonzero `gamma` values that must not create a boundary
-source, a manually entered tangency, marker visibility, rotate/pan/zoom/reset,
-screenshots, failed resource requests, and console errors.
+layouts, both chambers and both scene modes, the complete guided learning arc,
+a far-off cubic root, the cubic `x = 0` source, tiny nonzero `gamma` values
+that must not create a boundary source, a manually entered tangency, marker
+visibility, rotate/pan/zoom/reset, screenshots, failed resource requests, and
+console errors.
