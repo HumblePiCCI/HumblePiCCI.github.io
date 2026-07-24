@@ -44,6 +44,7 @@ jobs:
           node --check jacobian-counterexample-factory/visualizer/math.js
           node --check jacobian-counterexample-factory/visualizer/math.module.mjs
           node --check jacobian-counterexample-factory/visualizer/app.js
+          node --check jacobian-counterexample-factory/visualizer/session.js
           node --check jacobian-counterexample-factory/visualizer/tour-content.js
           node --check jacobian-counterexample-factory/visualizer/tour.js
       - name: Test visualizer mathematics
