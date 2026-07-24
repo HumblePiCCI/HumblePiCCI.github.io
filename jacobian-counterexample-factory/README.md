@@ -61,7 +61,8 @@ determinant `1`, an explicit inverse, and one preimage per target. Then explore
 fibers, and tangencies. The browser distinguishes exact SymPy certificates from
 numerical re-evaluation and reports the maximum relative root residual.
 
-Serve the repository locally and open the visualizer:
+Open `visualizer/index.html` directly from a checkout, or serve the repository
+locally:
 
 ```bash
 python -m http.server 8000

@@ -1,4 +1,9 @@
-import {
+const math = globalThis.JacobianMath;
+if (!math) {
+  throw new Error("JacobianMath failed to load before the visualizer runtime.");
+}
+
+const {
   analyzeAutomorphismFiber,
   analyzeCounterexampleFiber,
   automorphismOffset,
@@ -16,7 +21,7 @@ import {
   realCriticalTargets,
   threeRealPreset,
   verifyCollisionNumerically,
-} from "./math.js";
+} = math;
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];

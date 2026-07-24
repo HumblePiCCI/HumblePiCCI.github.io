@@ -19,7 +19,12 @@ source space explicit.
 
 ## Run locally
 
-From `jacobian-counterexample-factory/`:
+The visualizer is self-contained and can be opened directly from a downloaded
+checkout: double-click `visualizer/index.html` or drag it into a browser. Its
+runtime uses ordered classic scripts, so a `file://` launch does not depend on
+cross-origin ES-module loading.
+
+To serve the same files over HTTP, from `jacobian-counterexample-factory/`:
 
 ```bash
 python -m http.server 8000
@@ -146,8 +151,8 @@ JACOBIAN_LAB_URL=http://127.0.0.1:8765/visualizer/ \
   python visualizer/tests/browser_smoke.py
 ```
 
-The browser suite exercises desktop and mobile layouts, both chambers and both
-scene modes, a far-off cubic root, the cubic `x = 0` source, tiny nonzero
-`gamma` values that must not create a boundary source, a manually entered
-tangency, marker visibility, rotate/pan/zoom/reset, screenshots, and console
-errors.
+The browser suite exercises direct `file://` launch, desktop and mobile
+layouts, both chambers and both scene modes, a far-off cubic root, the cubic
+`x = 0` source, tiny nonzero `gamma` values that must not create a boundary
+source, a manually entered tangency, marker visibility, rotate/pan/zoom/reset,
+screenshots, failed resource requests, and console errors.

@@ -1,7 +1,8 @@
 import { expect, test } from "@playwright/test";
-import { realCriticalTargets } from "../math.js";
+import { realCriticalTargets } from "../math.module.mjs";
 
 const API_NAME = "__JACOBIAN_LAB__";
+const FILE_URL = new URL("../index.html", import.meta.url).href;
 
 async function waitForRenderedFrame(page) {
   await page.evaluate(() => new Promise((resolve) => {
@@ -37,6 +38,30 @@ async function openLab(page) {
   await waitForRenderedFrame(page);
   return errors;
 }
+
+test("a downloaded copy launches directly from file URL without module-origin errors", async ({ page }) => {
+  const errors = [];
+  const failedRequests = [];
+  page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(`console: ${message.text()}`);
+  });
+  page.on("requestfailed", (request) => failedRequests.push(`${request.url()}: ${request.failure()?.errorText}`));
+
+  await page.goto(FILE_URL, { waitUntil: "load" });
+  await expect(page.locator("#scene")).toHaveAttribute("data-render-ready", "true");
+  await expect(page.locator("#render-status")).toHaveClass(/is-ready/);
+  await expect.poll(() => page.evaluate((name) => {
+    const api = window[name];
+    return Boolean(api && typeof api.snapshot === "function");
+  }, API_NAME)).toBe(true);
+
+  const data = await snapshot(page);
+  expect(data.state.family).toBe("counterexample");
+  expect(data.analysis.genericDegree).toBe(5);
+  expect(errors).toEqual([]);
+  expect(failedRequests).toEqual([]);
+});
 
 function expectMarkersInside(snapshotData, markerType) {
   const markers = snapshotData.markers.filter((marker) => marker.type === markerType);

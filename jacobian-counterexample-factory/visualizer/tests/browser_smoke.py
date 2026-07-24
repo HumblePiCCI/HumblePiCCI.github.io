@@ -60,12 +60,13 @@ def run() -> None:
             root = Path(INLINE_ROOT)
             html = (root / "index.html").read_text(encoding="utf-8")
             css = (root / "visualizer.css").read_text(encoding="utf-8")
-            math_source = (root / "math.js").read_text(encoding="utf-8").replace("export ", "")
+            math_source = (root / "math.js").read_text(encoding="utf-8")
             app_source = (root / "app.js").read_text(encoding="utf-8")
-            import_end = app_source.index("const $ =")
-            app_source = app_source[import_end:]
             html = html.replace('<link rel="stylesheet" href="./visualizer.css">', f"<style>{css}</style>")
-            html = html.replace('<script type="module" src="./app.js"></script>', f"<script>{math_source}\n{app_source}</script>")
+            html = html.replace(
+                '<script src="./math.js"></script>\n    <script src="./app.js"></script>',
+                f"<script>{math_source}</script>\n<script>{app_source}</script>",
+            )
             page.set_content(html, wait_until="load")
         else:
             page.goto(BASE_URL, wait_until="networkidle")
