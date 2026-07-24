@@ -1,3 +1,230 @@
+(function installJacobianLabSession(root) {
+"use strict";
+
+const original = root.__JACOBIAN_LAB__;
+if (!original) throw new Error("Jacobian Fiber Lab must load before the session adapter.");
+
+const $ = (selector) => document.querySelector(selector);
+const $$ = (selector) => [...document.querySelectorAll(selector)];
+const animateButton = $("#animate-target");
+const animateGlyph = animateButton?.querySelector("span");
+const FAMILY_NAMES = ["counterexample", "automorphism"];
+const state = {
+  animationActive: animateButton?.getAttribute("aria-pressed") === "true",
+  animationCenter: original.snapshot().state.alpha,
+};
+
+function clone(value) {
+  return value == null ? value : JSON.parse(JSON.stringify(value));
+}
+
+function readSelectedSheet() {
+  const match = /group\s+(\d+)\s*\/\s*(\d+)/i.exec($("#sheet-index")?.textContent || "");
+  return match ? Math.max(0, Number(match[1]) - 1) : 0;
+}
+
+function readSheetCount() {
+  const match = /group\s+(\d+)\s*\/\s*(\d+)/i.exec($("#sheet-index")?.textContent || "");
+  return match ? Math.max(1, Number(match[2])) : 1;
+}
+
+function setSelectedSheet(index) {
+  const total = readSheetCount();
+  const target = Math.max(0, Math.min(total - 1, Number.isInteger(index) ? index : 0));
+  for (let attempt = 0; attempt < total + 1 && readSelectedSheet() !== target; attempt += 1) {
+    $("#next-sheet")?.click();
+  }
+}
+
+function syncAnimationControl(active) {
+  if (!animateButton) return;
+  animateButton.setAttribute("aria-pressed", String(active));
+  if (animateGlyph) animateGlyph.textContent = active ? "Ⅱ" : "▶";
+}
+
+function noteAnimationStopped() {
+  state.animationActive = false;
+  syncAnimationControl(false);
+}
+
+function noteAnimationButtonState() {
+  const active = animateButton?.getAttribute("aria-pressed") === "true";
+  state.animationActive = active;
+  if (active) state.animationCenter = original.snapshot().state.alpha;
+  syncAnimationControl(active);
+}
+
+animateButton?.addEventListener("click", noteAnimationButtonState);
+
+function stopAnimation() {
+  if (state.animationActive) animateButton?.click();
+  if (state.animationActive) noteAnimationStopped();
+  else syncAnimationControl(false);
+}
+
+function startAnimation(center, displayAlpha) {
+  stopAnimation();
+  const current = original.snapshot().state;
+  const targetCenter = Number.isFinite(center) ? center : current.alpha;
+  const visibleAlpha = Number.isFinite(displayAlpha) ? displayAlpha : current.alpha;
+  original.setState({ alpha: targetCenter });
+  animateButton?.click();
+  state.animationActive = true;
+  state.animationCenter = targetCenter;
+  syncAnimationControl(true);
+  if (Number.isFinite(visibleAlpha) && visibleAlpha !== targetCenter) original.setState({ alpha: visibleAlpha });
+}
+
+function augmentedSnapshot() {
+  const snapshot = original.snapshot();
+  return {
+    ...snapshot,
+    state: {
+      ...snapshot.state,
+      animate: state.animationActive,
+      animationCenter: state.animationCenter,
+      selectedSheet: readSelectedSheet(),
+    },
+  };
+}
+
+function cleanState(stateValue) {
+  const clean = { ...stateValue };
+  delete clean.animate;
+  delete clean.animationCenter;
+  delete clean.selectedSheet;
+  return clean;
+}
+
+function applyVisibleSnapshot(snapshot, { resumeAnimation = false } = {}) {
+  if (!snapshot?.state) throw new TypeError("A lab snapshot with state is required.");
+  stopAnimation();
+  original.setState({ ...cleanState(snapshot.state), camera: snapshot.camera });
+  noteAnimationStopped();
+  if (resumeAnimation && snapshot.state.animate) {
+    startAnimation(snapshot.state.animationCenter, snapshot.state.alpha);
+  }
+  setSelectedSheet(snapshot.state.selectedSheet);
+  return augmentedSnapshot();
+}
+
+function captureSession() {
+  const visible = augmentedSnapshot();
+  const activeFamily = visible.state.family;
+  const otherFamily = FAMILY_NAMES.find((family) => family !== activeFamily);
+  stopAnimation();
+
+  const families = { [activeFamily]: clone(visible) };
+  if (otherFamily) {
+    original.setFamily(otherFamily);
+    noteAnimationStopped();
+    families[otherFamily] = clone(augmentedSnapshot());
+    original.setFamily(activeFamily);
+    noteAnimationStopped();
+    applyVisibleSnapshot(visible, { resumeAnimation: false });
+  }
+
+  return Object.freeze({ version: 1, activeFamily, families: clone(families) });
+}
+
+function restoreSession(session, { resumeAnimation = true } = {}) {
+  if (!session?.families || !session.activeFamily) throw new TypeError("A captured lab session is required.");
+  stopAnimation();
+  const activeFamily = session.activeFamily;
+  const otherFamily = FAMILY_NAMES.find((family) => family !== activeFamily);
+
+  if (otherFamily && session.families[otherFamily]) {
+    if (original.snapshot().state.family !== otherFamily) original.setFamily(otherFamily);
+    noteAnimationStopped();
+    applyVisibleSnapshot(session.families[otherFamily], { resumeAnimation: false });
+  }
+
+  if (original.snapshot().state.family !== activeFamily) original.setFamily(activeFamily);
+  noteAnimationStopped();
+  return applyVisibleSnapshot(session.families[activeFamily], { resumeAnimation });
+}
+
+function applyTransientState(partial) {
+  stopAnimation();
+  const clean = { ...partial };
+  delete clean.animate;
+  delete clean.animationCenter;
+  delete clean.selectedSheet;
+  original.setState(clean);
+  noteAnimationStopped();
+  if (Number.isInteger(partial.selectedSheet)) setSelectedSheet(partial.selectedSheet);
+  return augmentedSnapshot();
+}
+
+function setState(partial = {}) {
+  const wantsAnimation = Object.prototype.hasOwnProperty.call(partial, "animate");
+  if (wantsAnimation && !partial.animate) stopAnimation();
+  const beforeFamily = original.snapshot().state.family;
+  const clean = { ...partial };
+  delete clean.animate;
+  delete clean.animationCenter;
+  delete clean.selectedSheet;
+  original.setState(clean);
+  const familyChanged = original.snapshot().state.family !== beforeFamily;
+  if (familyChanged) noteAnimationStopped();
+  if (wantsAnimation && partial.animate) {
+    startAnimation(partial.animationCenter, partial.alpha);
+  } else if (wantsAnimation) {
+    noteAnimationStopped();
+  }
+  if (Number.isInteger(partial.selectedSheet)) setSelectedSheet(partial.selectedSheet);
+  return augmentedSnapshot();
+}
+
+function setFamily(family) {
+  original.setFamily(family);
+  noteAnimationStopped();
+  return augmentedSnapshot();
+}
+
+function setMode(mode) {
+  original.setMode(mode);
+  return augmentedSnapshot();
+}
+
+function resetCamera() {
+  original.resetCamera();
+  return augmentedSnapshot();
+}
+
+for (const button of $$('[data-family]')) button.addEventListener("click", noteAnimationStopped);
+for (const button of [$("#preset-one"), $("#preset-two")]) button?.addEventListener("click", noteAnimationStopped);
+$("#preset-three")?.addEventListener("click", () => {
+  if (original.snapshot().state.family === "automorphism" || animateButton?.getAttribute("aria-pressed") === "false") noteAnimationStopped();
+  else stopAnimation();
+});
+for (const control of [$("#alpha"), $("#beta"), $("#gamma")]) control?.addEventListener("input", noteAnimationStopped);
+for (const control of [$("#alpha-number"), $("#beta-number"), $("#gamma-number")]) {
+  control?.addEventListener("change", noteAnimationStopped);
+  control?.addEventListener("keydown", (event) => { if (event.key === "Enter") noteAnimationStopped(); });
+}
+$("#degree")?.addEventListener("input", () => {
+  if (original.snapshot().state.family === "automorphism") stopAnimation();
+  else noteAnimationStopped();
+});
+
+root.__JACOBIAN_LAB__ = Object.freeze({
+  setState,
+  setFamily,
+  setMode,
+  resetCamera,
+  setAnimation(active, center = augmentedSnapshot().state.alpha) {
+    active ? startAnimation(center, augmentedSnapshot().state.alpha) : stopAnimation();
+    return augmentedSnapshot();
+  },
+  captureSession,
+  restoreSession,
+  applyTransientState,
+  snapshot: augmentedSnapshot,
+});
+
+document.documentElement.dataset.sessionReady = "true";
+})(globalThis);
 (function installJacobianTour(root) {
 "use strict";
 
@@ -8,7 +235,7 @@ const STORAGE_KEY = "jacobian-fiber-lab-tour-v1";
 const REDUCED_MOTION = root.matchMedia?.("(prefers-reduced-motion: reduce)");
 const $ = (selector) => document.querySelector(selector);
 const dom = {};
-const state = { active: false, index: 0, returnSnapshot: null, restoreFocus: null, target: null, transition: 0 };
+const state = { active: false, index: 0, returnSession: null, restoreFocus: null, target: null, transition: 0 };
 
 function frames(count = 2) {
   return new Promise((resolve) => {
@@ -21,7 +248,8 @@ function waitForLab() {
   return new Promise((resolve, reject) => {
     const started = performance.now();
     const probe = () => {
-      if (root.__JACOBIAN_LAB__ && document.documentElement.dataset.renderReady === "true") return resolve();
+      const lab = root.__JACOBIAN_LAB__;
+      if (lab && typeof lab.captureSession === "function" && document.documentElement.dataset.renderReady === "true") return resolve();
       if (performance.now() - started > 10000) return reject(new Error("Jacobian Fiber Lab did not become ready for the guided tour."));
       requestAnimationFrame(probe);
     };
@@ -36,7 +264,7 @@ function storageWrite(value) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(value)); } catch {}
 }
 async function setLab(partial) {
-  root.__JACOBIAN_LAB__.setState(partial);
+  root.__JACOBIAN_LAB__.applyTransientState({ ...partial, animate: false });
   await frames();
 }
 
@@ -236,7 +464,7 @@ async function start(index = 0) {
   await waitForLab();
   dismissInvite();
   if (!state.active) {
-    state.returnSnapshot = root.__JACOBIAN_LAB__.snapshot();
+    state.returnSession = root.__JACOBIAN_LAB__.captureSession();
     state.restoreFocus = document.activeElement;
   }
   state.active = true;
@@ -260,11 +488,16 @@ async function close({ restore = true } = {}) {
   dom.spotlight.hidden = true;
   dom.launcher.setAttribute("aria-expanded", "false");
   dom.topbar?.setAttribute("aria-pressed", "false");
-  if (restore && state.returnSnapshot) await setLab({ ...state.returnSnapshot.state, camera: state.returnSnapshot.camera });
+  if (restore && state.returnSession) {
+    root.__JACOBIAN_LAB__.restoreSession(state.returnSession, { resumeAnimation: true });
+    await frames();
+  }
+  state.returnSession = null;
   (state.restoreFocus?.isConnected ? state.restoreFocus : dom.launcher)?.focus?.({ preventScroll: true });
 }
 async function finish() {
   storageWrite({ completed: true, completedAt: new Date().toISOString() });
+  if (state.returnSession) root.__JACOBIAN_LAB__.restoreSession(state.returnSession, { resumeAnimation: false });
   await scenes["cubic-collision"]();
   await close({ restore: false });
   dom.toast.textContent = "Tour complete — you’re now at the exact cubic collision. Explore! ✦";
